@@ -1,7 +1,12 @@
 [package]
 name = "egui-map-view"
+description = "An slippy map viewer for egui applications."
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/braincow/egui-map-view"
+homepage = "https://github.com/braincow/egui-map-view"
+keywords = ["egui", "map", "openstreetmap"]
 
 [dependencies]
 eframe = "0.32.1"
