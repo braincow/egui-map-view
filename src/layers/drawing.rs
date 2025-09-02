@@ -1,3 +1,38 @@
+//! A layer for freeform drawing on the map.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use eframe::egui;
+//! use egui_map_view::{layers::DrawingLayer, layers::DrawingLayer::DrawingMode, Map, config::OpenStreetMapConfig};
+//!
+//! struct MyApp {
+//!     map: Map,
+//! }
+//!
+//! impl Default for MyApp {
+//!     fn default() -> Self {
+//!         let mut map = Map::new(OpenStreetMapConfig::default());
+//!         map.add_layer("drawing1", DrawingLayer::new());
+//!         if let Some(layer) = map.layers_mut().get_mut("drawing1") {
+//!           if let Some(drawing_layer) =
+//!             layer.as_any_mut().downcast_mut::<DrawingLayer>()
+//!           {
+//!               drawing_layer.draw_mode = DrawMode::Draw;
+//!           }
+//!         }
+//!         Self { map }
+//!     }
+//! }
+//!
+//! impl eframe::App for MyApp {
+//!     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+//!         egui::CentralPanel::default().show(ctx, |ui| {
+//!             ui.add(&mut self.map);
+//!         });
+//!     }
+//! }
+//! ```
 use egui::{Color32, Painter, Response, Stroke};
 use std::any::Any;
 
@@ -16,34 +51,7 @@ pub enum DrawMode {
     Erase,
 }
 
-/// A layer for freeform drawing on the map.
-///
-/// # Example
-///
-/// ```no_run
-/// use eframe::egui;
-/// use egui_map_view::{layers::DrawingLayer, Map, config::OpenStreetMapConfig};
-///
-/// struct MyApp {
-///     map: Map,
-/// }
-///
-/// impl Default for MyApp {
-///     fn default() -> Self {
-///         let mut map = Map::new(OpenStreetMapConfig::default());
-///         map.add_layer("drawing1", DrawingLayer::new());
-///         Self { map }
-///     }
-/// }
-///
-/// impl eframe::App for MyApp {
-///     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-///         egui::CentralPanel::default().show(ctx, |ui| {
-///             ui.add(&mut self.map);
-///         });
-///     }
-/// }
-/// ```
+/// Layer implementation that allows the user to draw polylines on the map.
 #[derive(Clone, Default)]
 pub struct DrawingLayer {
     polylines: Vec<Vec<(f64, f64)>>,
