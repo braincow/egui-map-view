@@ -17,6 +17,7 @@ A simple, interactive map view widget for `egui`.
 * **Coordinate Display**: Exposes the geographical coordinates (latitude, longitude) under the mouse cursor.
 * **Robust Placeholders**: Displays placeholders for tiles that are loading or have failed to download, with error details available on hover.
 * **Attribution**: Displays the map data's attribution with optional link to the provider's website.
+* **Robust layering system**: Add layers to the map that can display additional data on top of the base map.
 
 ## Usage
 
@@ -24,7 +25,7 @@ First, add `egui-map-view` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-egui-map-view = "0.1.0" # Replace with the latest version
+egui-map-view = "0.2.0" # Replace with the latest version
 ```
 
 Then, create a `Map` widget and add it to your `egui` UI.
