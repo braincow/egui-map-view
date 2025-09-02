@@ -1,6 +1,5 @@
 //! Map layers.
 //!
-
 use egui::{Color32, Painter, Response, Stroke};
 use std::any::Any;
 
@@ -20,6 +19,18 @@ pub trait Layer: Any {
 
     /// Gets the layer as a mutable `dyn Any`.
     fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+/// The mode of the `DrawingLayer`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DrawMode {
+    /// The layer is not interactive.
+    #[default]
+    Disabled,
+    /// The user can draw on the map.
+    Draw,
+    /// The user can erase drawings.
+    Erase,
 }
 
 /// A layer for freeform drawing on the map.
@@ -55,8 +66,8 @@ pub struct DrawingLayer {
     polylines: Vec<Vec<(f64, f64)>>,
     stroke: Stroke,
 
-    /// Whether the user can draw on the map.
-    pub draw_enabled: bool,
+    /// The current drawing mode.
+    pub draw_mode: DrawMode,
 }
 
 impl DrawingLayer {
@@ -65,7 +76,7 @@ impl DrawingLayer {
         Self {
             polylines: Vec::new(),
             stroke: Stroke::new(2.0, Color32::RED),
-            draw_enabled: false,
+            draw_mode: DrawMode::default(),
         }
     }
 }
@@ -80,26 +91,60 @@ impl Layer for DrawingLayer {
     }
 
     fn handle_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
-        if !self.draw_enabled {
-            return false;
-        }
-
-        if response.drag_started() {
-            self.polylines.push(Vec::new());
-        }
-
-        if response.dragged() {
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
-                if let Some(last_line) = self.polylines.last_mut() {
-                    let geo_pos = projection.unproject(pointer_pos);
-                    last_line.push(geo_pos);
+        match self.draw_mode {
+            DrawMode::Disabled => false,
+            DrawMode::Draw => {
+                if response.drag_started() {
+                    self.polylines.push(Vec::new());
                 }
+
+                if response.dragged() {
+                    if let Some(pointer_pos) = response.interact_pointer_pos() {
+                        if let Some(last_line) = self.polylines.last_mut() {
+                            let geo_pos = projection.unproject(pointer_pos);
+                            last_line.push(geo_pos);
+                        }
+                    }
+                }
+
+                // When drawing, we consume all interactions over the map,
+                // so that the map does not pan or zoom.
+                response.hovered()
+            }
+            DrawMode::Erase => {
+                if response.dragged() {
+                    if let Some(pointer_pos) = response.interact_pointer_pos() {
+                        let erase_radius_screen = 10.0;
+                        let erase_radius_sq = erase_radius_screen * erase_radius_screen;
+
+                        let mut new_polylines = Vec::new();
+                        let old_polylines = std::mem::take(&mut self.polylines);
+
+                        for polyline in old_polylines {
+                            let mut segment = Vec::new();
+                            for point_geo in polyline {
+                                let point_screen = projection.project(point_geo);
+                                if point_screen.distance_sq(pointer_pos) < erase_radius_sq {
+                                    // Point is inside erase radius, finish the current segment.
+                                    if segment.len() > 1 {
+                                        new_polylines.push(segment);
+                                    }
+                                    segment = Vec::new();
+                                } else {
+                                    // Point is outside, add to current segment.
+                                    segment.push(point_geo);
+                                }
+                            }
+                            if segment.len() > 1 {
+                                new_polylines.push(segment);
+                            }
+                        }
+                        self.polylines = new_polylines;
+                    }
+                }
+                response.hovered()
             }
         }
-
-        // If drawing is enabled, we consume all interactions over the map,
-        // so that the map does not pan or zoom.
-        response.hovered()
     }
 
     fn draw(&self, painter: &Painter, projection: &MapProjection) {
@@ -120,7 +165,7 @@ mod tests {
     #[test]
     fn drawing_layer_new() {
         let layer = DrawingLayer::new();
-        assert!(!layer.draw_enabled);
+        assert_eq!(layer.draw_mode, DrawMode::Disabled);
         assert!(layer.polylines.is_empty());
     }
 
