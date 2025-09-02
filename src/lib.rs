@@ -28,7 +28,11 @@
 //!         egui::CentralPanel::default()
 //!             .frame(egui::Frame::NONE)
 //!             .show(ctx, |ui| {
-//!                 ui.add(&mut self.map);
+//!                if ui.add(&mut self.map).clicked() {
+//!                    if let Some((lon, lat)) = self.map.mouse_pos {
+//!                        info!("Map clicked at {} x {}", lon, lat);
+//!                    }
+//!                };
 //!             });
 //!     }
 //! }
