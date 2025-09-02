@@ -144,7 +144,7 @@ pub struct Map {
     config: Box<dyn MapConfig>,
 
     /// Layers to be drawn on top of the base map.
-    layers: Vec<Box<dyn Layer>>,
+    layers: HashMap<String, Box<dyn Layer>>,
 }
 
 impl Map {
@@ -162,22 +162,22 @@ impl Map {
             config: Box::new(config),
             center,
             zoom,
-            layers: Vec::new(),
+            layers: HashMap::new(),
         }
     }
 
     /// Adds a layer to the map.
-    pub fn add_layer(&mut self, layer: impl Layer + 'static) {
-        self.layers.push(Box::new(layer));
+    pub fn add_layer(&mut self, key: impl Into<String>, layer: impl Layer + 'static) {
+        self.layers.insert(key.into(), Box::new(layer));
     }
 
     /// Get a reference to the layers.
-    pub fn layers(&self) -> &[Box<dyn Layer>] {
+    pub fn layers(&self) -> &HashMap<String, Box<dyn Layer>> {
         &self.layers
     }
 
     /// Get a mutable reference to the layers.
-    pub fn layers_mut(&mut self) -> &mut [Box<dyn Layer>] {
+    pub fn layers_mut(&mut self) -> &mut HashMap<String, Box<dyn Layer>> {
         &mut self.layers
     }
 
@@ -528,8 +528,7 @@ impl Widget for &mut Map {
         let projection = MapProjection::new(self.zoom, self.center, rect);
 
         let mut input_handled_by_layer = false;
-        for layer in &mut self.layers {
-            layer.handle_input(&response, &projection);
+        for layer in self.layers.values_mut() {
             if layer.handle_input(&response, &projection) {
                 input_handled_by_layer = true;
             }
@@ -543,9 +542,8 @@ impl Widget for &mut Map {
         self.mouse_pos = response.hover_pos().map(|pos| projection.unproject(pos));
 
         self.draw_map(ui, &rect);
-
         let painter = ui.painter_at(rect);
-        for layer in &self.layers {
+        for layer in self.layers.values() {
             layer.draw(&painter, &projection);
         }
 
