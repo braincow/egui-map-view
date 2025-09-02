@@ -77,6 +77,10 @@ impl Layer for DrawingLayer {
         match self.draw_mode {
             DrawMode::Disabled => false,
             DrawMode::Draw => {
+                if response.hovered() {
+                    response.ctx.set_cursor_icon(egui::CursorIcon::Crosshair);
+                }
+
                 if response.drag_started() {
                     self.polylines.push(Vec::new());
                 }
@@ -95,6 +99,10 @@ impl Layer for DrawingLayer {
                 response.hovered()
             }
             DrawMode::Erase => {
+                if response.hovered() {
+                    response.ctx.set_cursor_icon(egui::CursorIcon::NotAllowed);
+                }
+
                 if response.dragged() {
                     if let Some(pointer_pos) = response.interact_pointer_pos() {
                         let erase_radius_screen = 10.0;

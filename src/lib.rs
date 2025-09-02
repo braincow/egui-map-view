@@ -536,6 +536,13 @@ impl Widget for &mut Map {
 
         if !input_handled_by_layer {
             self.handle_input(ui, &rect, &response);
+
+            // Change the cursor icon when dragging or hovering over the map.
+            if response.dragged() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+            } else if response.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+            }
         }
 
         // Update mouse position.
