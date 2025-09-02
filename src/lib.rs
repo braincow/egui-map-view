@@ -41,6 +41,12 @@
 /// Configuration traits and types for the map widget.
 pub mod config;
 
+/// Map layers.
+pub mod layers;
+
+/// Map projection.
+pub mod projection;
+
 use eframe::egui;
 use egui::{Color32, Rect, Response, Sense, Ui, Vec2, Widget, pos2};
 use eyre::{Context, Result};
@@ -52,6 +58,8 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::config::MapConfig;
+use crate::layers::Layer;
+use crate::projection::MapProjection;
 
 // The size of a map tile in pixels.
 const TILE_SIZE: u32 = 256;
@@ -134,6 +142,9 @@ pub struct Map {
 
     /// Configuration for the map, such as the tile server URL.
     config: Box<dyn MapConfig>,
+
+    /// Layers to be drawn on top of the base map.
+    layers: Vec<Box<dyn Layer>>,
 }
 
 impl Map {
@@ -151,11 +162,17 @@ impl Map {
             config: Box::new(config),
             center,
             zoom,
+            layers: Vec::new(),
         }
     }
 
+    /// Adds a layer to the map.
+    pub fn add_layer(&mut self, layer: impl Layer + 'static) {
+        self.layers.push(Box::new(layer));
+    }
+
     /// Handles user input for panning and zooming.
-    fn handle_input(&mut self, ui: &Ui, rect: &Rect, response: Response) {
+    fn handle_input(&mut self, ui: &Ui, rect: &Rect, response: &Response) {
         // Handle panning
         if response.dragged() {
             let delta = response.drag_delta();
@@ -287,8 +304,8 @@ impl Map {
         }
     }
 
-    /// Draws the map tiles and attribution.
-    fn draw_map_and_attribution(&mut self, ui: &mut Ui, rect: &Rect) {
+    /// Draws the map tiles.
+    fn draw_map(&mut self, ui: &mut Ui, rect: &Rect) {
         let painter = ui.painter_at(*rect);
         painter.rect_filled(*rect, 0.0, Color32::from_rgb(220, 220, 220)); // Background
 
@@ -296,8 +313,38 @@ impl Map {
         for (tile_id, tile_pos) in visible_tiles {
             self.draw_tile(ui, &painter, tile_id, tile_pos);
         }
+    }
 
-        self.draw_attribution(ui, rect);
+    /// Draws the attribution text.
+    fn draw_attribution(&self, ui: &mut Ui, rect: &Rect) {
+        if let Some(attribution) = self.config.attribution() {
+            let (_text_color, bg_color) = if ui.visuals().dark_mode {
+                (Color32::from_gray(230), Color32::from_black_alpha(150))
+            } else {
+                (Color32::from_gray(80), Color32::from_white_alpha(150))
+            };
+
+            let frame = egui::Frame::NONE
+                .inner_margin(egui::Margin::same(5)) // A bit of padding
+                .fill(bg_color)
+                .corner_radius(3.0);
+
+            egui::Area::new(ui.id().with("attribution"))
+                .fixed_pos(rect.left_bottom())
+                .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(5.0, -5.0))
+                .show(ui.ctx(), |ui| {
+                    frame.show(ui, |ui| {
+                        ui.style_mut().override_text_style = Some(egui::TextStyle::Small);
+                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend); // Don't wrap attribution text.
+
+                        if let Some(url) = self.config.attribution_url() {
+                            ui.hyperlink_to(attribution, url);
+                        } else {
+                            ui.label(attribution);
+                        }
+                    });
+                });
+        }
     }
 
     /// Returns an iterator over the visible tiles.
@@ -446,38 +493,6 @@ impl Map {
             }
         }
     }
-
-    /// Draws the attribution text.
-    fn draw_attribution(&self, ui: &mut Ui, rect: &Rect) {
-        if let Some(attribution) = self.config.attribution() {
-            let (_text_color, bg_color) = if ui.visuals().dark_mode {
-                (Color32::from_gray(230), Color32::from_black_alpha(150))
-            } else {
-                (Color32::from_gray(80), Color32::from_white_alpha(150))
-            };
-
-            let frame = egui::Frame::NONE
-                .inner_margin(egui::Margin::same(5)) // A bit of padding
-                .fill(bg_color)
-                .corner_radius(3.0);
-
-            egui::Area::new(ui.id().with("attribution"))
-                .fixed_pos(rect.left_bottom())
-                .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(5.0, -5.0))
-                .show(ui.ctx(), |ui| {
-                    frame.show(ui, |ui| {
-                        ui.style_mut().override_text_style = Some(egui::TextStyle::Small);
-                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend); // Don't wrap attribution text.
-
-                        if let Some(url) = self.config.attribution_url() {
-                            ui.hyperlink_to(attribution, url);
-                        } else {
-                            ui.label(attribution);
-                        }
-                    });
-                });
-        }
-    }
 }
 
 /// Converts longitude to the x-coordinate of a tile at a given zoom level.
@@ -506,9 +521,23 @@ impl Widget for &mut Map {
     fn ui(self, ui: &mut Ui) -> Response {
         let (rect, response) =
             ui.allocate_exact_size(ui.available_size(), Sense::drag().union(Sense::click()));
-        let response_clone = response.clone();
-        self.handle_input(ui, &rect, response_clone);
-        self.draw_map_and_attribution(ui, &rect);
+
+        let projection = MapProjection::new(self.zoom, self.center, rect);
+
+        self.handle_input(ui, &rect, &response);
+
+        for layer in &mut self.layers {
+            layer.handle_input(&response, &projection);
+        }
+
+        self.draw_map(ui, &rect);
+
+        let painter = ui.painter_at(rect);
+        for layer in &self.layers {
+            layer.draw(&painter, &projection);
+        }
+
+        self.draw_attribution(ui, &rect);
 
         response
     }
