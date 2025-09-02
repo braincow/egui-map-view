@@ -53,3 +53,65 @@ impl MapProjection {
         (x_to_lon(target_x, self.zoom), y_to_lat(target_y, self.zoom))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{pos2, vec2};
+
+    const EPSILON: f64 = 1e-9;
+
+    fn create_projection() -> MapProjection {
+        MapProjection::new(
+            10,
+            (24.93545, 60.16952), // Helsinki
+            Rect::from_min_size(pos2(100.0, 200.0), vec2(800.0, 600.0)),
+        )
+    }
+
+    #[test]
+    fn project_center() {
+        let projection = create_projection();
+        let center_geo = (projection.center_lon, projection.center_lat);
+        let projected_center = projection.project(center_geo);
+        assert_eq!(projected_center, projection.widget_rect.center());
+    }
+
+    #[test]
+    fn unproject_center() {
+        let projection = create_projection();
+        let center_screen = projection.widget_rect.center();
+        let (lon, lat) = projection.unproject(center_screen);
+        assert!((lon - projection.center_lon).abs() < EPSILON);
+        assert!((lat - projection.center_lat).abs() < EPSILON);
+    }
+
+    #[test]
+    fn project_unproject_roundtrip() {
+        let projection = create_projection();
+        let geo_pos_in = (24.93545, 60.16952); // Some point near Helsinki
+
+        let screen_pos = projection.project(geo_pos_in);
+        let geo_pos_out = projection.unproject(screen_pos);
+
+        println!("{}", EPSILON);
+        println!("Input Geo: {:?}", geo_pos_in);
+        println!("Output Geo: {:?}", geo_pos_out);
+        println!("{}", (geo_pos_in.0 - geo_pos_out.0).abs());
+        assert!((geo_pos_in.0 - geo_pos_out.0).abs() < EPSILON);
+        println!("{}", (geo_pos_in.1 - geo_pos_out.1).abs());
+        assert!((geo_pos_in.1 - geo_pos_out.1).abs() < EPSILON);
+    }
+
+    #[test]
+    fn unproject_project_roundtrip() {
+        let projection = create_projection();
+        let screen_pos_in = pos2(150.0, 250.0); // Some point on the widget
+
+        let geo_pos = projection.unproject(screen_pos_in);
+        let screen_pos_out = projection.project(geo_pos);
+
+        assert!((screen_pos_in.x - screen_pos_out.x).abs() < 1e-3); // f32 precision
+        assert!((screen_pos_in.y - screen_pos_out.y).abs() < 1e-3);
+    }
+}
