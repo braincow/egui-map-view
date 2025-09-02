@@ -1,17 +1,25 @@
-//! Map layers.ccccccgcutbfutunntjgefeukfvchggtlvttjnbjjhvl
+//! Map layers.
 //!
 
 use egui::{Color32, Painter, Response, Stroke};
+use std::any::Any;
 
 use crate::projection::MapProjection;
 
 /// A trait for map layers.
-pub trait Layer {
-    /// Handles user input for the layer.
-    fn handle_input(&mut self, response: &Response, projection: &MapProjection);
+pub trait Layer: Any {
+    /// Handles user input for the layer. Returns `true` if the input was handled and should not be
+    /// processed further by the map.
+    fn handle_input(&mut self, response: &Response, projection: &MapProjection) -> bool;
 
     /// Draws the layer.
     fn draw(&self, painter: &Painter, projection: &MapProjection);
+
+    /// Gets the layer as a `dyn Any`.
+    fn as_any(&self) -> &dyn Any;
+
+    /// Gets the layer as a mutable `dyn Any`.
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 /// A layer for freeform drawing on the map.
@@ -42,10 +50,13 @@ pub trait Layer {
 ///     }
 /// }
 /// ```
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct DrawingLayer {
     polylines: Vec<Vec<(f64, f64)>>,
     stroke: Stroke,
+
+    /// Whether the user can draw on the map.
+    pub draw_enabled: bool,
 }
 
 impl DrawingLayer {
@@ -54,12 +65,25 @@ impl DrawingLayer {
         Self {
             polylines: Vec::new(),
             stroke: Stroke::new(2.0, Color32::RED),
+            draw_enabled: false,
         }
     }
 }
 
 impl Layer for DrawingLayer {
-    fn handle_input(&mut self, response: &Response, projection: &MapProjection) {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn handle_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
+        if !self.draw_enabled {
+            return false;
+        }
+
         if response.drag_started() {
             self.polylines.push(Vec::new());
         }
@@ -72,6 +96,10 @@ impl Layer for DrawingLayer {
                 }
             }
         }
+
+        // If drawing is enabled, we consume all interactions over the map,
+        // so that the map does not pan or zoom.
+        response.hovered()
     }
 
     fn draw(&self, painter: &Painter, projection: &MapProjection) {

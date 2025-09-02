@@ -171,6 +171,16 @@ impl Map {
         self.layers.push(Box::new(layer));
     }
 
+    /// Get a reference to the layers.
+    pub fn layers(&self) -> &[Box<dyn Layer>] {
+        &self.layers
+    }
+
+    /// Get a mutable reference to the layers.
+    pub fn layers_mut(&mut self) -> &mut [Box<dyn Layer>] {
+        &mut self.layers
+    }
+
     /// Handles user input for panning and zooming.
     fn handle_input(&mut self, ui: &Ui, rect: &Rect, response: &Response) {
         // Handle panning
@@ -238,7 +248,7 @@ impl Map {
             }
         }
 
-        // Handle zooming and mouse position
+        // Handle scroll-to-zoom
         if response.hovered() {
             if let Some(mouse_pos) = response.hover_pos() {
                 let mouse_rel = mouse_pos - rect.min;
@@ -251,9 +261,6 @@ impl Map {
 
                 let target_x = center_x + (mouse_rel.x as f64 - widget_center_x) / TILE_SIZE as f64;
                 let target_y = center_y + (mouse_rel.y as f64 - widget_center_y) / TILE_SIZE as f64;
-
-                self.mouse_pos =
-                    Some((x_to_lon(target_x, self.zoom), y_to_lat(target_y, self.zoom)));
 
                 let scroll = ui.input(|i| i.raw_scroll_delta.y);
                 if scroll != 0.0 {
@@ -296,11 +303,7 @@ impl Map {
                         );
                     }
                 }
-            } else {
-                self.mouse_pos = None;
             }
-        } else {
-            self.mouse_pos = None;
         }
     }
 
@@ -524,11 +527,20 @@ impl Widget for &mut Map {
 
         let projection = MapProjection::new(self.zoom, self.center, rect);
 
-        self.handle_input(ui, &rect, &response);
-
+        let mut input_handled_by_layer = false;
         for layer in &mut self.layers {
             layer.handle_input(&response, &projection);
+            if layer.handle_input(&response, &projection) {
+                input_handled_by_layer = true;
+            }
         }
+
+        if !input_handled_by_layer {
+            self.handle_input(ui, &rect, &response);
+        }
+
+        // Update mouse position.
+        self.mouse_pos = response.hover_pos().map(|pos| projection.unproject(pos));
 
         self.draw_map(ui, &rect);
 
