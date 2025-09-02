@@ -112,3 +112,27 @@ impl Layer for DrawingLayer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn drawing_layer_new() {
+        let layer = DrawingLayer::new();
+        assert!(!layer.draw_enabled);
+        assert!(layer.polylines.is_empty());
+    }
+
+    #[test]
+    fn drawing_layer_as_any() {
+        let layer = DrawingLayer::new();
+        assert!(layer.as_any().is::<DrawingLayer>());
+    }
+
+    #[test]
+    fn drawing_layer_as_any_mut() {
+        let mut layer = DrawingLayer::new();
+        assert!(layer.as_any_mut().is::<DrawingLayer>());
+    }
+}

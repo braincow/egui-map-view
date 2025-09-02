@@ -94,12 +94,7 @@ mod tests {
         let screen_pos = projection.project(geo_pos_in);
         let geo_pos_out = projection.unproject(screen_pos);
 
-        println!("{}", EPSILON);
-        println!("Input Geo: {:?}", geo_pos_in);
-        println!("Output Geo: {:?}", geo_pos_out);
-        println!("{}", (geo_pos_in.0 - geo_pos_out.0).abs());
         assert!((geo_pos_in.0 - geo_pos_out.0).abs() < EPSILON);
-        println!("{}", (geo_pos_in.1 - geo_pos_out.1).abs());
         assert!((geo_pos_in.1 - geo_pos_out.1).abs() < EPSILON);
     }
 
