@@ -37,7 +37,7 @@ pub trait Layer: Any {
 /// impl Default for MyApp {
 ///     fn default() -> Self {
 ///         let mut map = Map::new(OpenStreetMapConfig::default());
-///         map.add_layer(DrawingLayer::new());
+///         map.add_layer("drawing1", DrawingLayer::new());
 ///         Self { map }
 ///     }
 /// }
