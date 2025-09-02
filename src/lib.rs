@@ -30,7 +30,7 @@
 //!             .show(ctx, |ui| {
 //!                if ui.add(&mut self.map).clicked() {
 //!                    if let Some((lon, lat)) = self.map.mouse_pos {
-//!                        info!("Map clicked at {} x {}", lon, lat);
+//!                        println!("Map clicked at {} x {}", lon, lat);
 //!                    }
 //!                };
 //!             });
