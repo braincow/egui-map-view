@@ -2,7 +2,11 @@
 #![allow(rustdoc::missing_crate_level_docs)] // it's an example
 
 use eframe::egui;
-use egui_map_view::{Map, config::OpenStreetMapConfig, layers::DrawingLayer};
+use egui_map_view::{
+    Map,
+    config::OpenStreetMapConfig,
+    layers::{DrawingLayer, drawing::DrawMode},
+};
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -24,7 +28,7 @@ struct MyApp {
 impl Default for MyApp {
     fn default() -> Self {
         let mut map = Map::new(OpenStreetMapConfig::default());
-        map.add_layer("drawing1", DrawingLayer::new());
+        map.add_layer("drawing", DrawingLayer::new());
         Self { map }
     }
 }
@@ -35,6 +39,25 @@ impl eframe::App for MyApp {
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
                 ui.add(&mut self.map).clicked();
+            });
+
+        egui::Window::new("Drawing")
+            .resizable(false)
+            .default_width(280.0)
+            .show(ctx, |ui| {
+                if let Some(layer) = self.map.layers_mut().get_mut("drawing") {
+                    if let Some(drawing_layer) = layer.as_any_mut().downcast_mut::<DrawingLayer>() {
+                        ui.horizontal(|ui| {
+                            ui.radio_value(
+                                &mut drawing_layer.draw_mode,
+                                DrawMode::Disabled,
+                                "Disabled",
+                            );
+                            ui.radio_value(&mut drawing_layer.draw_mode, DrawMode::Draw, "Draw");
+                            ui.radio_value(&mut drawing_layer.draw_mode, DrawMode::Erase, "Erase");
+                        });
+                    }
+                }
             });
     }
 }
