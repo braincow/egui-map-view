@@ -89,6 +89,19 @@ impl Layer for DrawingLayer {
                     response.ctx.set_cursor_icon(egui::CursorIcon::Crosshair);
                 }
 
+                if response.clicked() && response.ctx.input(|i| i.modifiers.shift) {
+                    if let Some(pointer_pos) = response.interact_pointer_pos() {
+                        let geo_pos = projection.unproject(pointer_pos);
+                        if let Some(last_line) = self.polylines.last_mut() {
+                            last_line.push(geo_pos);
+                        } else {
+                            // No polylines exist yet, so create a new one.
+                            let geo_pos2 = projection.unproject(pointer_pos + egui::vec2(1.0, 0.0));
+                            self.polylines.push(vec![geo_pos, geo_pos2]);
+                        }
+                    }
+                }
+
                 if response.drag_started() {
                     self.polylines.push(Vec::new());
                 }
