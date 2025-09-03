@@ -42,9 +42,11 @@
 pub mod config;
 
 /// Map layers.
+#[cfg(feature = "layers")]
 pub mod layers;
 
 /// Map projection.
+#[cfg(feature = "projection")]
 pub mod projection;
 
 use eframe::egui;
