@@ -7,7 +7,6 @@ use crate::projection::MapProjection;
 
 /// Drawing layer
 pub mod drawing;
-pub use drawing::DrawingLayer;
 
 /// A trait for map layers.
 pub trait Layer: Any {

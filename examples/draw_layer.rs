@@ -5,7 +5,7 @@ use eframe::egui;
 use egui_map_view::{
     Map,
     config::OpenStreetMapConfig,
-    layers::{DrawingLayer, drawing::DrawMode},
+    layers::drawing::{DrawMode, DrawingLayer},
 };
 
 fn main() -> eframe::Result {

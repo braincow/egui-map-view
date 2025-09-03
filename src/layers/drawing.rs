@@ -4,7 +4,7 @@
 //!
 //! ```no_run
 //! use eframe::egui;
-//! use egui_map_view::{layers::DrawingLayer, layers::DrawingLayer::DrawingMode, Map, config::OpenStreetMapConfig};
+//! use egui_map_view::{layers::drawing::DrawingLayer, layers::drawing::DrawMode, Map, config::OpenStreetMapConfig};
 //!
 //! struct MyApp {
 //!     map: Map,
@@ -34,13 +34,14 @@
 //! }
 //! ```
 use egui::{Color32, Painter, Response, Stroke};
+use serde::{Deserialize, Serialize};
 use std::any::Any;
 
 use crate::layers::Layer;
 use crate::projection::MapProjection;
 
 /// The mode of the `DrawingLayer`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DrawMode {
     /// The layer is not interactive.
     #[default]
@@ -52,11 +53,15 @@ pub enum DrawMode {
 }
 
 /// Layer implementation that allows the user to draw polylines on the map.
-#[derive(Clone, Default)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct DrawingLayer {
     polylines: Vec<Vec<(f64, f64)>>,
+
+    #[serde(skip)]
     stroke: Stroke,
 
+    #[serde(skip)]
     /// The current drawing mode.
     pub draw_mode: DrawMode,
 }
@@ -64,6 +69,16 @@ pub struct DrawingLayer {
 impl DrawingLayer {
     /// Creates a new `DrawingLayer`.
     pub fn new() -> Self {
+        Self {
+            polylines: Vec::new(),
+            stroke: Stroke::new(2.0, Color32::RED),
+            draw_mode: DrawMode::default(),
+        }
+    }
+}
+
+impl Default for DrawingLayer {
+    fn default() -> Self {
         Self {
             polylines: Vec::new(),
             stroke: Stroke::new(2.0, Color32::RED),
@@ -191,5 +206,31 @@ mod tests {
     fn drawing_layer_as_any_mut() {
         let mut layer = DrawingLayer::new();
         assert!(layer.as_any_mut().is::<DrawingLayer>());
+    }
+
+    #[test]
+    fn drawing_layer_serde() {
+        let mut layer = DrawingLayer::new();
+        layer.draw_mode = DrawMode::Draw; // This should not be serialized.
+        layer.polylines.push(vec![(1.0, 2.0), (3.0, 4.0)]);
+        layer.stroke = Stroke::new(5.0, Color32::BLUE); // This should not be serialized.
+
+        let json = serde_json::to_string(&layer).unwrap();
+
+        // The serialized string should only contain polylines.
+        assert!(json.contains(r#""polylines":[[[1.0,2.0],[3.0,4.0]]]"#));
+        assert!(!json.contains("draw_mode"));
+        assert!(!json.contains("stroke"));
+
+        let deserialized: DrawingLayer = serde_json::from_str(&json).unwrap();
+
+        // Check that polylines are restored correctly.
+        assert_eq!(deserialized.polylines, layer.polylines);
+
+        // Check that skipped fields have their values from the `default()` implementation,
+        // not from the original `layer` object.
+        assert_eq!(deserialized.draw_mode, DrawMode::Disabled);
+        assert_eq!(deserialized.stroke.width, 2.0);
+        assert_eq!(deserialized.stroke.color, Color32::RED);
     }
 }
