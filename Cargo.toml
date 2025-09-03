@@ -18,3 +18,7 @@ log = "0.4.27"
 eyre = "0.6.12"
 once_cell = "1.17.2"
 egui = "0.32.1"
+
+[[example]]
+name = "simple"
+path = "examples/simple.rs"
