@@ -6,6 +6,7 @@ use std::any::Any;
 use crate::projection::MapProjection;
 
 /// Drawing layer
+#[cfg(feature = "drawing-layer")]
 pub mod drawing;
 
 /// A trait for map layers.
