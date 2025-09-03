@@ -22,3 +22,7 @@ egui = "0.32.1"
 [[example]]
 name = "simple"
 path = "examples/simple.rs"
+
+[[example]]
+name = "drawing"
+path = "examples/draw_layer.rs"
