@@ -1,4 +1,4 @@
-//! Map projection.
+//! Projections handle converting different coordinate systems between other coordinate systems.
 
 use egui::Rect;
 

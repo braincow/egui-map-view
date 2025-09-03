@@ -1,4 +1,4 @@
-//! Map layers.
+//! Layers for the map view that can handle input, and draw on top of the map view different kinds of data.
 //!
 use egui::{Painter, Response};
 use std::any::Any;
