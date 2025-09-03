@@ -45,7 +45,7 @@ pub mod config;
 pub mod layers;
 
 /// Map projection.
-mod projection;
+pub mod projection;
 
 use eframe::egui;
 use egui::{Color32, Rect, Response, Sense, Ui, Vec2, Widget, pos2};
