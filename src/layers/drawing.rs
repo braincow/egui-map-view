@@ -13,7 +13,7 @@
 //! impl Default for MyApp {
 //!     fn default() -> Self {
 //!         let mut map = Map::new(OpenStreetMapConfig::default());
-//!         map.add_layer("drawing1", DrawingLayer::new());
+//!         map.add_layer("drawing1", DrawingLayer::default());
 //!         if let Some(layer) = map.layers_mut().get_mut("drawing1") {
 //!           if let Some(drawing_layer) =
 //!             layer.as_any_mut().downcast_mut::<DrawingLayer>()
@@ -59,7 +59,8 @@ pub struct DrawingLayer {
     polylines: Vec<Vec<(f64, f64)>>,
 
     #[serde(skip)]
-    stroke: Stroke,
+    /// The stroke style for drawing aka line width and color.
+    pub stroke: Stroke,
 
     #[serde(skip)]
     /// The current drawing mode.
@@ -68,10 +69,10 @@ pub struct DrawingLayer {
 
 impl DrawingLayer {
     /// Creates a new `DrawingLayer`.
-    pub fn new() -> Self {
+    pub fn new(stroke: Stroke) -> Self {
         Self {
             polylines: Vec::new(),
-            stroke: Stroke::new(2.0, Color32::RED),
+            stroke,
             draw_mode: DrawMode::default(),
         }
     }
@@ -191,26 +192,26 @@ mod tests {
 
     #[test]
     fn drawing_layer_new() {
-        let layer = DrawingLayer::new();
+        let layer = DrawingLayer::default();
         assert_eq!(layer.draw_mode, DrawMode::Disabled);
         assert!(layer.polylines.is_empty());
     }
 
     #[test]
     fn drawing_layer_as_any() {
-        let layer = DrawingLayer::new();
+        let layer = DrawingLayer::default();
         assert!(layer.as_any().is::<DrawingLayer>());
     }
 
     #[test]
     fn drawing_layer_as_any_mut() {
-        let mut layer = DrawingLayer::new();
+        let mut layer = DrawingLayer::default();
         assert!(layer.as_any_mut().is::<DrawingLayer>());
     }
 
     #[test]
     fn drawing_layer_serde() {
-        let mut layer = DrawingLayer::new();
+        let mut layer = DrawingLayer::default();
         layer.draw_mode = DrawMode::Draw; // This should not be serialized.
         layer.polylines.push(vec![(1.0, 2.0), (3.0, 4.0)]);
         layer.stroke = Stroke::new(5.0, Color32::BLUE); // This should not be serialized.
