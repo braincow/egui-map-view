@@ -28,7 +28,7 @@ pub trait MapConfig {
 /// use egui_map_view::config::OpenStreetMapConfig;
 /// let config = OpenStreetMapConfig::default();
 /// ```
-#[allow(dead_code)]
+#[cfg(feature = "openstreetmap")]
 pub struct OpenStreetMapConfig {
     base_url: String,
     attribution: String,
@@ -37,6 +37,7 @@ pub struct OpenStreetMapConfig {
     default_zoom: u8,
 }
 
+#[cfg(feature = "openstreetmap")]
 impl Default for OpenStreetMapConfig {
     fn default() -> Self {
         Self {
@@ -49,6 +50,7 @@ impl Default for OpenStreetMapConfig {
     }
 }
 
+#[cfg(feature = "openstreetmap")]
 impl MapConfig for OpenStreetMapConfig {
     fn tile_url(&self, tile: &TileId) -> String {
         format!("{}/{}/{}/{}.png", self.base_url, tile.z, tile.x, tile.y)
@@ -79,6 +81,7 @@ impl MapConfig for OpenStreetMapConfig {
 /// use egui_map_view::config::KarttapaikkaMapConfig;
 /// let config = KarttapaikkaMapConfig::new("my-api-key".to_string());
 /// ```
+#[cfg(feature = "karttapaikka")]
 pub struct KarttapaikkaMapConfig {
     base_url: String,
     attribution: String,
@@ -88,6 +91,7 @@ pub struct KarttapaikkaMapConfig {
     api_key: String,
 }
 
+#[cfg(feature = "karttapaikka")]
 impl Default for KarttapaikkaMapConfig {
     fn default() -> Self {
         Self {
@@ -101,6 +105,7 @@ impl Default for KarttapaikkaMapConfig {
     }
 }
 
+#[cfg(feature = "karttapaikka")]
 impl MapConfig for KarttapaikkaMapConfig {
     fn tile_url(&self, tile: &TileId) -> String {
         format!(
@@ -126,6 +131,7 @@ impl MapConfig for KarttapaikkaMapConfig {
     }
 }
 
+#[cfg(feature = "karttapaikka")]
 impl KarttapaikkaMapConfig {
     /// Creates a new `KarttapaikkaMapConfig` with the given API key.
     pub fn new(api_key: String) -> Self {
@@ -141,6 +147,7 @@ mod tests {
     use crate::TileId;
 
     #[test]
+    #[cfg(feature = "openstreetmap")]
     fn openstreetmap_config_default() {
         let config = OpenStreetMapConfig::default();
         assert_eq!(config.base_url, "https://tile.openstreetmap.org");
@@ -150,6 +157,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "openstreetmap")]
     fn openstreetmap_config_tile_url() {
         let config = OpenStreetMapConfig::default();
         let tile_id = TileId { z: 10, x: 1, y: 2 };
@@ -158,6 +166,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "karttapaikka")]
     fn karttapaikka_config_new() {
         let api_key = "test-api-key".to_string();
         let config = KarttapaikkaMapConfig::new(api_key.clone());
@@ -172,6 +181,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "karttapaikka")]
     fn karttapaikka_config_tile_url() {
         let api_key = "test-api-key".to_string();
         let config = KarttapaikkaMapConfig::new(api_key.clone());
