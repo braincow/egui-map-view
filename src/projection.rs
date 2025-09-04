@@ -1,6 +1,6 @@
 //! Projections handle converting different coordinate systems between other coordinate systems.
 
-use egui::Rect;
+use egui::{Pos2, Rect, vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::{TILE_SIZE, lat_to_y, lon_to_x, x_to_lon, y_to_lat};
@@ -25,7 +25,7 @@ impl MapProjection {
     }
 
     /// Projects a geographical coordinate to a screen coordinate.
-    pub fn project(&self, geo_pos: GeoPos) -> egui::Pos2 {
+    pub fn project(&self, geo_pos: GeoPos) -> Pos2 {
         let center_x = lon_to_x(self.center_lon, self.zoom);
         let center_y = lat_to_y(self.center_lat, self.zoom);
 
@@ -36,11 +36,11 @@ impl MapProjection {
         let dy = (tile_y - center_y) * TILE_SIZE as f64;
 
         let widget_center = self.widget_rect.center();
-        widget_center + egui::vec2(dx as f32, dy as f32)
+        widget_center + vec2(dx as f32, dy as f32)
     }
 
     /// Un-projects a screen coordinate to a geographical coordinate.
-    pub fn unproject(&self, screen_pos: egui::Pos2) -> GeoPos {
+    pub fn unproject(&self, screen_pos: Pos2) -> GeoPos {
         let rel_pos = screen_pos - self.widget_rect.min;
         let widget_center_x = self.widget_rect.width() as f64 / 2.0;
         let widget_center_y = self.widget_rect.height() as f64 / 2.0;

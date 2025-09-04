@@ -33,12 +33,11 @@
 //!     }
 //! }
 //! ```
+use crate::layers::Layer;
+use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Painter, Pos2, Response, Stroke};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
-
-use crate::layers::Layer;
-use crate::projection::{GeoPos, MapProjection};
 
 /// The mode of the `DrawingLayer`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,39 +145,76 @@ impl Layer for DrawingLayer {
                         let erase_radius_sq = erase_radius_screen * erase_radius_screen;
 
                         let old_polylines = std::mem::take(&mut self.polylines);
-                        let mut new_polylines = Vec::with_capacity(old_polylines.len());
+                        let mut new_polylines = Vec::new();
 
                         for polyline in old_polylines {
                             if polyline.len() < 2 {
                                 continue;
                             }
 
-                            let mut current_segment = vec![polyline[0]];
+                            let screen_points: Vec<Pos2> =
+                                polyline.iter().map(|p| projection.project(*p)).collect();
 
-                            for window in polyline.windows(2) {
-                                let p1_geo = window[0];
-                                let p2_geo = window[1];
+                            let mut current_line = Vec::new();
+                            let mut in_visible_part = true;
 
-                                let p1_screen = projection.project(p1_geo.into());
-                                let p2_screen = projection.project(p2_geo.into());
+                            // Check if the first segment is erased to correctly set initial state.
+                            if dist_sq_to_segment(pointer_pos, screen_points[0], screen_points[1])
+                                < erase_radius_sq
+                            {
+                                in_visible_part = false;
+                            } else {
+                                current_line.push(polyline[0]);
+                            }
 
-                                if dist_sq_to_segment(pointer_pos, p1_screen, p2_screen)
-                                    < erase_radius_sq
-                                {
-                                    // This segment is erased. Finalize the previous segment.
-                                    if current_segment.len() > 1 {
-                                        new_polylines.push(current_segment);
+                            for i in 0..(polyline.len() - 1) {
+                                let p2_geo = polyline[i + 1];
+                                let p1_screen = screen_points[i];
+                                let p2_screen = screen_points[i + 1];
+
+                                let segment_is_erased =
+                                    dist_sq_to_segment(pointer_pos, p1_screen, p2_screen)
+                                        < erase_radius_sq;
+
+                                if in_visible_part {
+                                    if segment_is_erased {
+                                        // Transition from visible to erased.
+                                        let t =
+                                            projection_factor(pointer_pos, p1_screen, p2_screen);
+                                        let split_point_screen = p1_screen.lerp(p2_screen, t);
+                                        let split_point_geo =
+                                            projection.unproject(split_point_screen);
+                                        current_line.push(split_point_geo);
+
+                                        if current_line.len() > 1 {
+                                            new_polylines.push(std::mem::take(&mut current_line));
+                                        }
+                                        in_visible_part = false;
+                                    } else {
+                                        // Continue visible part.
+                                        current_line.push(p2_geo);
                                     }
-                                    // Start a new segment from the second point of the erased one.
-                                    current_segment = vec![p2_geo];
                                 } else {
-                                    // This segment is not erased, extend the current one.
-                                    current_segment.push(p2_geo);
+                                    // In erased part
+                                    if !segment_is_erased {
+                                        // Transition from erased to visible.
+                                        let t =
+                                            projection_factor(pointer_pos, p1_screen, p2_screen);
+                                        let split_point_screen = p1_screen.lerp(p2_screen, t);
+                                        let split_point_geo =
+                                            projection.unproject(split_point_screen);
+
+                                        // Start new line.
+                                        current_line.push(split_point_geo);
+                                        current_line.push(p2_geo);
+                                        in_visible_part = true;
+                                    }
+                                    // Continue in erased part, do nothing.
                                 }
                             }
 
-                            if current_segment.len() > 1 {
-                                new_polylines.push(current_segment);
+                            if current_line.len() > 1 {
+                                new_polylines.push(current_line);
                             }
                         }
                         self.polylines = new_polylines;
@@ -221,6 +257,21 @@ fn dist_sq_to_segment(p: Pos2, a: Pos2, b: Pos2) -> f32 {
     let closest_point = a + t * ab;
 
     p.distance_sq(closest_point)
+}
+
+/// Calculates the projection factor of a point onto a line segment.
+/// Returns a value `t` from 0.0 to 1.0.
+fn projection_factor(p: Pos2, a: Pos2, b: Pos2) -> f32 {
+    let ab = b - a;
+    let ap = p - a;
+    let l2 = ab.length_sq();
+
+    if l2 == 0.0 {
+        return 0.0;
+    }
+
+    // Project point p onto the line defined by a and b.
+    (ap.dot(ab) / l2).clamp(0.0, 1.0)
 }
 
 #[cfg(test)]
