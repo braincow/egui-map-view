@@ -182,6 +182,20 @@ impl Map {
         &mut self.layers
     }
 
+    /// Get a reference to a specific layer.
+    pub fn layer<T: Layer>(&self, key: &str) -> Option<&T> {
+        self.layers
+            .get(key)
+            .and_then(|layer| layer.as_any().downcast_ref::<T>())
+    }
+
+    /// Get a mutable reference to a specific layer.
+    pub fn layer_mut<T: Layer>(&mut self, key: &str) -> Option<&mut T> {
+        self.layers
+            .get_mut(key)
+            .and_then(|layer| layer.as_any_mut().downcast_mut::<T>())
+    }
+
     /// Handles user input for panning and zooming.
     fn handle_input(&mut self, ui: &Ui, rect: &Rect, response: &Response) {
         // Handle panning

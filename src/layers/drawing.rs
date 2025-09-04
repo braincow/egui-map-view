@@ -11,18 +11,14 @@
 //! }
 //!
 //! impl Default for MyApp {
-//!     fn default() -> Self {
-//!         let mut map = Map::new(OpenStreetMapConfig::default());
-//!         map.add_layer("drawing1", DrawingLayer::default());
-//!         if let Some(layer) = map.layers_mut().get_mut("drawing1") {
-//!           if let Some(drawing_layer) =
-//!             layer.as_any_mut().downcast_mut::<DrawingLayer>()
-//!           {
-//!               drawing_layer.draw_mode = DrawMode::Draw;
-//!           }
-//!         }
-//!         Self { map }
-//!     }
+//!   fn default() -> Self {
+//!     let mut map = Map::new(OpenStreetMapConfig::default());
+//!      map.add_layer("drawing", DrawingLayer::default());
+//!      if let Some(drawing_layer) = map.layer_mut::<DrawingLayer>("drawing") {
+//!        drawing_layer.draw_mode = DrawMode::Draw;
+//!      }
+//!      Self { map }
+//!    }
 //! }
 //!
 //! impl eframe::App for MyApp {
@@ -87,6 +83,70 @@ impl Default for DrawingLayer {
     }
 }
 
+impl DrawingLayer {
+    fn handle_draw_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
+        if response.hovered() {
+            response.ctx.set_cursor_icon(egui::CursorIcon::Crosshair);
+        }
+
+        if response.clicked() && response.ctx.input(|i| i.modifiers.shift) {
+            if let Some(pointer_pos) = response.interact_pointer_pos() {
+                let geo_pos = projection.unproject(pointer_pos);
+                if let Some(last_line) = self.polylines.last_mut() {
+                    last_line.push(geo_pos);
+                } else {
+                    // No polylines exist yet, so create a new one.
+                    let geo_pos2 = projection.unproject(pointer_pos + egui::vec2(1.0, 0.0));
+                    self.polylines.push(vec![geo_pos, geo_pos2]);
+                }
+            }
+        }
+
+        if response.drag_started() {
+            self.polylines.push(Vec::new());
+        }
+
+        if response.dragged() {
+            if let Some(pointer_pos) = response.interact_pointer_pos() {
+                if let Some(last_line) = self.polylines.last_mut() {
+                    let geo_pos = projection.unproject(pointer_pos);
+                    last_line.push(geo_pos);
+                }
+            }
+        }
+
+        // When drawing, we consume all interactions over the map,
+        // so that the map does not pan or zoom.
+        response.hovered()
+    }
+
+    fn handle_erase_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
+        if response.hovered() {
+            response.ctx.set_cursor_icon(egui::CursorIcon::NotAllowed);
+        }
+
+        if response.dragged() {
+            if let Some(pointer_pos) = response.interact_pointer_pos() {
+                self.erase_at(pointer_pos, projection);
+            }
+        }
+        response.hovered()
+    }
+
+    fn erase_at(&mut self, pointer_pos: Pos2, projection: &MapProjection) {
+        let erase_radius_screen = 10.0;
+        let erase_radius_sq = erase_radius_screen * erase_radius_screen;
+
+        let old_polylines = std::mem::take(&mut self.polylines);
+        self.polylines = old_polylines
+            .into_iter()
+            .flat_map(|polyline| {
+                split_polyline_by_erase_circle(&polyline, pointer_pos, erase_radius_sq, projection)
+            })
+            .collect();
+    }
+}
+
 impl Layer for DrawingLayer {
     fn as_any(&self) -> &dyn Any {
         self
@@ -99,143 +159,92 @@ impl Layer for DrawingLayer {
     fn handle_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
         match self.draw_mode {
             DrawMode::Disabled => false,
-            DrawMode::Draw => {
-                if response.hovered() {
-                    response.ctx.set_cursor_icon(egui::CursorIcon::Crosshair);
-                }
-
-                if response.clicked() && response.ctx.input(|i| i.modifiers.shift) {
-                    if let Some(pointer_pos) = response.interact_pointer_pos() {
-                        let geo_pos = projection.unproject(pointer_pos);
-                        if let Some(last_line) = self.polylines.last_mut() {
-                            last_line.push(geo_pos.into());
-                        } else {
-                            // No polylines exist yet, so create a new one.
-                            let geo_pos2 = projection.unproject(pointer_pos + egui::vec2(1.0, 0.0));
-                            self.polylines.push(vec![geo_pos.into(), geo_pos2.into()]);
-                        }
-                    }
-                }
-
-                if response.drag_started() {
-                    self.polylines.push(Vec::new());
-                }
-
-                if response.dragged() {
-                    if let Some(pointer_pos) = response.interact_pointer_pos() {
-                        if let Some(last_line) = self.polylines.last_mut() {
-                            let geo_pos = projection.unproject(pointer_pos);
-                            last_line.push(geo_pos.into());
-                        }
-                    }
-                }
-
-                // When drawing, we consume all interactions over the map,
-                // so that the map does not pan or zoom.
-                response.hovered()
-            }
-            DrawMode::Erase => {
-                if response.hovered() {
-                    response.ctx.set_cursor_icon(egui::CursorIcon::NotAllowed);
-                }
-
-                if response.dragged() {
-                    if let Some(pointer_pos) = response.interact_pointer_pos() {
-                        let erase_radius_screen = 10.0;
-                        let erase_radius_sq = erase_radius_screen * erase_radius_screen;
-
-                        let old_polylines = std::mem::take(&mut self.polylines);
-                        let mut new_polylines = Vec::new();
-
-                        for polyline in old_polylines {
-                            if polyline.len() < 2 {
-                                continue;
-                            }
-
-                            let screen_points: Vec<Pos2> =
-                                polyline.iter().map(|p| projection.project(*p)).collect();
-
-                            let mut current_line = Vec::new();
-                            let mut in_visible_part = true;
-
-                            // Check if the first segment is erased to correctly set initial state.
-                            if dist_sq_to_segment(pointer_pos, screen_points[0], screen_points[1])
-                                < erase_radius_sq
-                            {
-                                in_visible_part = false;
-                            } else {
-                                current_line.push(polyline[0]);
-                            }
-
-                            for i in 0..(polyline.len() - 1) {
-                                let p2_geo = polyline[i + 1];
-                                let p1_screen = screen_points[i];
-                                let p2_screen = screen_points[i + 1];
-
-                                let segment_is_erased =
-                                    dist_sq_to_segment(pointer_pos, p1_screen, p2_screen)
-                                        < erase_radius_sq;
-
-                                if in_visible_part {
-                                    if segment_is_erased {
-                                        // Transition from visible to erased.
-                                        let t =
-                                            projection_factor(pointer_pos, p1_screen, p2_screen);
-                                        let split_point_screen = p1_screen.lerp(p2_screen, t);
-                                        let split_point_geo =
-                                            projection.unproject(split_point_screen);
-                                        current_line.push(split_point_geo);
-
-                                        if current_line.len() > 1 {
-                                            new_polylines.push(std::mem::take(&mut current_line));
-                                        }
-                                        in_visible_part = false;
-                                    } else {
-                                        // Continue visible part.
-                                        current_line.push(p2_geo);
-                                    }
-                                } else {
-                                    // In erased part
-                                    if !segment_is_erased {
-                                        // Transition from erased to visible.
-                                        let t =
-                                            projection_factor(pointer_pos, p1_screen, p2_screen);
-                                        let split_point_screen = p1_screen.lerp(p2_screen, t);
-                                        let split_point_geo =
-                                            projection.unproject(split_point_screen);
-
-                                        // Start new line.
-                                        current_line.push(split_point_geo);
-                                        current_line.push(p2_geo);
-                                        in_visible_part = true;
-                                    }
-                                    // Continue in erased part, do nothing.
-                                }
-                            }
-
-                            if current_line.len() > 1 {
-                                new_polylines.push(current_line);
-                            }
-                        }
-                        self.polylines = new_polylines;
-                    }
-                }
-                response.hovered()
-            }
+            DrawMode::Draw => self.handle_draw_input(response, projection),
+            DrawMode::Erase => self.handle_erase_input(response, projection),
         }
     }
 
     fn draw(&self, painter: &Painter, projection: &MapProjection) {
         for polyline in &self.polylines {
             if polyline.len() > 1 {
-                let screen_points: Vec<egui::Pos2> = polyline
-                    .iter()
-                    .map(|p| projection.project((*p).into()))
-                    .collect();
+                let screen_points: Vec<egui::Pos2> =
+                    polyline.iter().map(|p| projection.project(*p)).collect();
                 painter.add(egui::Shape::line(screen_points, self.stroke));
             }
         }
     }
+}
+
+/// Splits a polyline into multiple polylines based on whether segments are within the erase radius.
+fn split_polyline_by_erase_circle(
+    polyline: &[GeoPos],
+    pointer_pos: Pos2,
+    erase_radius_sq: f32,
+    projection: &MapProjection,
+) -> Vec<Vec<GeoPos>> {
+    if polyline.len() < 2 {
+        return vec![];
+    }
+
+    let screen_points: Vec<Pos2> = polyline.iter().map(|p| projection.project(*p)).collect();
+
+    let mut new_polylines = Vec::new();
+    let mut current_line = Vec::new();
+    let mut in_visible_part = true;
+
+    // Check if the first segment is erased to correctly set initial state.
+    if dist_sq_to_segment(pointer_pos, screen_points[0], screen_points[1]) < erase_radius_sq {
+        in_visible_part = false;
+    } else {
+        current_line.push(polyline[0]);
+    }
+
+    for i in 0..(polyline.len() - 1) {
+        let p2_geo = polyline[i + 1];
+        let p1_screen = screen_points[i];
+        let p2_screen = screen_points[i + 1];
+
+        let segment_is_erased =
+            dist_sq_to_segment(pointer_pos, p1_screen, p2_screen) < erase_radius_sq;
+
+        if in_visible_part {
+            if segment_is_erased {
+                // Transition from visible to erased.
+                let t = projection_factor(pointer_pos, p1_screen, p2_screen);
+                let split_point_screen = p1_screen.lerp(p2_screen, t);
+                let split_point_geo = projection.unproject(split_point_screen);
+                current_line.push(split_point_geo);
+
+                if current_line.len() > 1 {
+                    new_polylines.push(std::mem::take(&mut current_line));
+                }
+                in_visible_part = false;
+            } else {
+                // Continue visible part.
+                current_line.push(p2_geo);
+            }
+        } else {
+            // In erased part
+            if !segment_is_erased {
+                // Transition from erased to visible.
+                let t = projection_factor(pointer_pos, p1_screen, p2_screen);
+                let split_point_screen = p1_screen.lerp(p2_screen, t);
+                let split_point_geo = projection.unproject(split_point_screen);
+
+                // Start new line.
+                current_line.push(split_point_geo);
+                current_line.push(p2_geo);
+                in_visible_part = true;
+            }
+            // Continue in erased part, do nothing.
+        }
+    }
+
+    if current_line.len() > 1 {
+        new_polylines.push(current_line);
+    }
+
+    new_polylines
 }
 
 /// Calculates the squared distance from a point to a line segment.

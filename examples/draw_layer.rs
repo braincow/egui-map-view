@@ -45,28 +45,26 @@ impl eframe::App for MyApp {
             .resizable(false)
             .default_width(280.0)
             .show(ctx, |ui| {
-                if let Some(layer) = self.map.layers_mut().get_mut("drawing") {
-                    if let Some(drawing_layer) = layer.as_any_mut().downcast_mut::<DrawingLayer>() {
-                        ui.label("Mode");
-                        ui.horizontal(|ui| {
-                            ui.radio_value(
-                                &mut drawing_layer.draw_mode,
-                                DrawMode::Disabled,
-                                "Disabled",
-                            );
-                            ui.radio_value(&mut drawing_layer.draw_mode, DrawMode::Draw, "Draw");
-                            ui.radio_value(&mut drawing_layer.draw_mode, DrawMode::Erase, "Erase");
-                        });
-
-                        ui.add(
-                            egui::Slider::new(&mut drawing_layer.stroke.width, 0.1..=10.0)
-                                .text("Stroke width"),
+                if let Some(drawing_layer) = self.map.layer_mut::<DrawingLayer>("drawing") {
+                    ui.label("Mode");
+                    ui.horizontal(|ui| {
+                        ui.radio_value(
+                            &mut drawing_layer.draw_mode,
+                            DrawMode::Disabled,
+                            "Disabled",
                         );
-                        ui.horizontal(|ui| {
-                            ui.label("Stroke color:");
-                            ui.color_edit_button_srgba(&mut drawing_layer.stroke.color);
-                        });
-                    }
+                        ui.radio_value(&mut drawing_layer.draw_mode, DrawMode::Draw, "Draw");
+                        ui.radio_value(&mut drawing_layer.draw_mode, DrawMode::Erase, "Erase");
+                    });
+
+                    ui.add(
+                        egui::Slider::new(&mut drawing_layer.stroke.width, 0.1..=10.0)
+                            .text("Stroke width"),
+                    );
+                    ui.horizontal(|ui| {
+                        ui.label("Stroke color:");
+                        ui.color_edit_button_srgba(&mut drawing_layer.stroke.color);
+                    });
                 }
             });
     }
