@@ -89,10 +89,12 @@ impl DrawingLayer {
             response.ctx.set_cursor_icon(egui::CursorIcon::Crosshair);
         }
 
-        if response.clicked() && response.ctx.input(|i| i.modifiers.shift) {
+        if response.clicked() {
             if let Some(pointer_pos) = response.interact_pointer_pos() {
                 let geo_pos = projection.unproject(pointer_pos);
-                if let Some(last_line) = self.polylines.last_mut() {
+                if let Some(last_line) = self.polylines.last_mut()
+                    && response.ctx.input(|i| i.modifiers.shift)
+                {
                     last_line.push(geo_pos);
                 } else {
                     // No polylines exist yet, so create a new one.
@@ -125,7 +127,7 @@ impl DrawingLayer {
             response.ctx.set_cursor_icon(egui::CursorIcon::NotAllowed);
         }
 
-        if response.dragged() {
+        if response.dragged() || response.clicked() {
             if let Some(pointer_pos) = response.interact_pointer_pos() {
                 self.erase_at(pointer_pos, projection);
             }
