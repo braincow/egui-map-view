@@ -54,7 +54,7 @@ use eyre::{Context, Result};
 use log::{debug, error};
 use once_cell::sync::Lazy;
 use poll_promise::Promise;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -145,7 +145,7 @@ pub struct Map {
     config: Box<dyn MapConfig>,
 
     /// Layers to be drawn on top of the base map.
-    layers: HashMap<String, Box<dyn Layer>>,
+    layers: BTreeMap<String, Box<dyn Layer>>,
 }
 
 impl Map {
@@ -163,7 +163,7 @@ impl Map {
             config: Box::new(config),
             center,
             zoom,
-            layers: HashMap::new(),
+            layers: BTreeMap::new(),
         }
     }
 
@@ -173,12 +173,12 @@ impl Map {
     }
 
     /// Get a reference to the layers.
-    pub fn layers(&self) -> &HashMap<String, Box<dyn Layer>> {
+    pub fn layers(&self) -> &BTreeMap<String, Box<dyn Layer>> {
         &self.layers
     }
 
     /// Get a mutable reference to the layers.
-    pub fn layers_mut(&mut self) -> &mut HashMap<String, Box<dyn Layer>> {
+    pub fn layers_mut(&mut self) -> &mut BTreeMap<String, Box<dyn Layer>> {
         &mut self.layers
     }
 
@@ -548,6 +548,7 @@ impl Widget for &mut Map {
         for layer in self.layers.values_mut() {
             if layer.handle_input(&response, &projection) {
                 input_handled_by_layer = true;
+                break; // Stop after the first layer handles the input.
             }
         }
 
