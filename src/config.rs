@@ -1,3 +1,5 @@
+//! Configuration for different map providers.
+
 use crate::TileId;
 
 /// Configuration for a map provider.

@@ -29,8 +29,8 @@
 //!             .frame(egui::Frame::NONE)
 //!             .show(ctx, |ui| {
 //!                if ui.add(&mut self.map).clicked() {
-//!                    if let Some((lon, lat)) = self.map.mouse_pos {
-//!                        info!("Map clicked at {} x {}", lon, lat);
+//!                    if let Some(pos) = self.map.mouse_pos {
+//!                        println!("Map clicked at {} x {}", pos.lon, pos.lat);
 //!                    }
 //!                };
 //!             });
@@ -41,17 +41,26 @@
 /// Configuration traits and types for the map widget.
 pub mod config;
 
+/// Map layers.
+#[cfg(feature = "layers")]
+pub mod layers;
+
+/// Map projection.
+pub mod projection;
+
 use eframe::egui;
 use egui::{Color32, Rect, Response, Sense, Ui, Vec2, Widget, pos2};
 use eyre::{Context, Result};
 use log::{debug, error};
 use once_cell::sync::Lazy;
 use poll_promise::Promise;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use thiserror::Error;
 
 use crate::config::MapConfig;
+use crate::layers::Layer;
+use crate::projection::{GeoPos, MapProjection};
 
 // The size of a map tile in pixels.
 const TILE_SIZE: u32 = 256;
@@ -122,7 +131,7 @@ enum Tile {
 /// The map widget.
 pub struct Map {
     /// The geographical center of the map. (longitude, latitude)
-    pub center: (f64, f64),
+    pub center: GeoPos,
 
     /// The zoom level of the map.
     pub zoom: u8,
@@ -130,10 +139,13 @@ pub struct Map {
     tiles: HashMap<TileId, Tile>,
 
     /// The geographical position under the mouse pointer, if any. (longitude, latitude)
-    pub mouse_pos: Option<(f64, f64)>,
+    pub mouse_pos: Option<GeoPos>,
 
     /// Configuration for the map, such as the tile server URL.
     config: Box<dyn MapConfig>,
+
+    /// Layers to be drawn on top of the base map.
+    layers: BTreeMap<String, Box<dyn Layer>>,
 }
 
 impl Map {
@@ -143,7 +155,7 @@ impl Map {
     ///
     /// * `config` - A type that implements `MapConfig`, which provides configuration for the map.
     pub fn new<C: MapConfig + 'static>(config: C) -> Self {
-        let center = config.default_center();
+        let center = GeoPos::from(config.default_center());
         let zoom = config.default_zoom();
         Self {
             tiles: HashMap::new(),
@@ -151,16 +163,55 @@ impl Map {
             config: Box::new(config),
             center,
             zoom,
+            layers: BTreeMap::new(),
         }
     }
 
+    /// Adds a layer to the map.
+    pub fn add_layer(&mut self, key: impl Into<String>, layer: impl Layer + 'static) {
+        self.layers.insert(key.into(), Box::new(layer));
+    }
+
+    /// Remove a layer from the map
+    pub fn remove_layer(&mut self, key: &str) -> bool {
+        if self.layers.remove(key).is_some() {
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Get a reference to the layers.
+    pub fn layers(&self) -> &BTreeMap<String, Box<dyn Layer>> {
+        &self.layers
+    }
+
+    /// Get a mutable reference to the layers.
+    pub fn layers_mut(&mut self) -> &mut BTreeMap<String, Box<dyn Layer>> {
+        &mut self.layers
+    }
+
+    /// Get a reference to a specific layer.
+    pub fn layer<T: Layer>(&self, key: &str) -> Option<&T> {
+        self.layers
+            .get(key)
+            .and_then(|layer| layer.as_any().downcast_ref::<T>())
+    }
+
+    /// Get a mutable reference to a specific layer.
+    pub fn layer_mut<T: Layer>(&mut self, key: &str) -> Option<&mut T> {
+        self.layers
+            .get_mut(key)
+            .and_then(|layer| layer.as_any_mut().downcast_mut::<T>())
+    }
+
     /// Handles user input for panning and zooming.
-    fn handle_input(&mut self, ui: &Ui, rect: &Rect, response: Response) {
+    fn handle_input(&mut self, ui: &Ui, rect: &Rect, response: &Response) {
         // Handle panning
         if response.dragged() {
             let delta = response.drag_delta();
-            let center_in_tiles_x = lon_to_x(self.center.0, self.zoom);
-            let center_in_tiles_y = lat_to_y(self.center.1, self.zoom);
+            let center_in_tiles_x = lon_to_x(self.center.lon, self.zoom);
+            let center_in_tiles_y = lat_to_y(self.center.lat, self.zoom);
 
             let mut new_center_x = center_in_tiles_x - (delta.x as f64 / TILE_SIZE as f64);
             let mut new_center_y = center_in_tiles_y - (delta.y as f64 / TILE_SIZE as f64);
@@ -190,7 +241,8 @@ impl Map {
             self.center = (
                 x_to_lon(new_center_x, self.zoom),
                 y_to_lat(new_center_y, self.zoom),
-            );
+            )
+                .into();
         }
 
         // Handle double-click to zoom and center
@@ -201,8 +253,8 @@ impl Map {
                 if new_zoom != self.zoom {
                     // Determine the geo-coordinate under the mouse cursor before the zoom
                     let mouse_rel = pointer_pos - rect.min;
-                    let center_x = lon_to_x(self.center.0, self.zoom);
-                    let center_y = lat_to_y(self.center.1, self.zoom);
+                    let center_x = lon_to_x(self.center.lon, self.zoom);
+                    let center_y = lat_to_y(self.center.lat, self.zoom);
                     let widget_center_x = rect.width() as f64 / 2.0;
                     let widget_center_y = rect.height() as f64 / 2.0;
 
@@ -216,27 +268,24 @@ impl Map {
 
                     // Set the new zoom level and center the map on the clicked location
                     self.zoom = new_zoom;
-                    self.center = (new_center_lon, new_center_lat);
+                    self.center = (new_center_lon, new_center_lat).into();
                 }
             }
         }
 
-        // Handle zooming and mouse position
+        // Handle scroll-to-zoom
         if response.hovered() {
             if let Some(mouse_pos) = response.hover_pos() {
                 let mouse_rel = mouse_pos - rect.min;
 
                 // Determine the geo-coordinate under the mouse cursor.
-                let center_x = lon_to_x(self.center.0, self.zoom);
-                let center_y = lat_to_y(self.center.1, self.zoom);
+                let center_x = lon_to_x(self.center.lon, self.zoom);
+                let center_y = lat_to_y(self.center.lat, self.zoom);
                 let widget_center_x = rect.width() as f64 / 2.0;
                 let widget_center_y = rect.height() as f64 / 2.0;
 
                 let target_x = center_x + (mouse_rel.x as f64 - widget_center_x) / TILE_SIZE as f64;
                 let target_y = center_y + (mouse_rel.y as f64 - widget_center_y) / TILE_SIZE as f64;
-
-                self.mouse_pos =
-                    Some((x_to_lon(target_x, self.zoom), y_to_lat(target_y, self.zoom)));
 
                 let scroll = ui.input(|i| i.raw_scroll_delta.y);
                 if scroll != 0.0 {
@@ -276,19 +325,16 @@ impl Map {
                         self.center = (
                             x_to_lon(new_center_x, new_zoom),
                             y_to_lat(new_center_y, new_zoom),
-                        );
+                        )
+                            .into();
                     }
                 }
-            } else {
-                self.mouse_pos = None;
             }
-        } else {
-            self.mouse_pos = None;
         }
     }
 
-    /// Draws the map tiles and attribution.
-    fn draw_map_and_attribution(&mut self, ui: &mut Ui, rect: &Rect) {
+    /// Draws the map tiles.
+    fn draw_map(&mut self, ui: &mut Ui, rect: &Rect) {
         let painter = ui.painter_at(*rect);
         painter.rect_filled(*rect, 0.0, Color32::from_rgb(220, 220, 220)); // Background
 
@@ -296,14 +342,44 @@ impl Map {
         for (tile_id, tile_pos) in visible_tiles {
             self.draw_tile(ui, &painter, tile_id, tile_pos);
         }
+    }
 
-        self.draw_attribution(ui, rect);
+    /// Draws the attribution text.
+    fn draw_attribution(&self, ui: &mut Ui, rect: &Rect) {
+        if let Some(attribution) = self.config.attribution() {
+            let (_text_color, bg_color) = if ui.visuals().dark_mode {
+                (Color32::from_gray(230), Color32::from_black_alpha(150))
+            } else {
+                (Color32::from_gray(80), Color32::from_white_alpha(150))
+            };
+
+            let frame = egui::Frame::NONE
+                .inner_margin(egui::Margin::same(5)) // A bit of padding
+                .fill(bg_color)
+                .corner_radius(3.0);
+
+            egui::Area::new(ui.id().with("attribution"))
+                .fixed_pos(rect.left_bottom())
+                .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(5.0, -5.0))
+                .show(ui.ctx(), |ui| {
+                    frame.show(ui, |ui| {
+                        ui.style_mut().override_text_style = Some(egui::TextStyle::Small);
+                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend); // Don't wrap attribution text.
+
+                        if let Some(url) = self.config.attribution_url() {
+                            ui.hyperlink_to(attribution, url);
+                        } else {
+                            ui.label(attribution);
+                        }
+                    });
+                });
+        }
     }
 
     /// Returns an iterator over the visible tiles.
     fn visible_tiles(&self, rect: &Rect) -> impl Iterator<Item = (TileId, egui::Pos2)> {
-        let center_x = lon_to_x(self.center.0, self.zoom);
-        let center_y = lat_to_y(self.center.1, self.zoom);
+        let center_x = lon_to_x(self.center.lon, self.zoom);
+        let center_y = lat_to_y(self.center.lat, self.zoom);
 
         let widget_center_x = rect.width() / 2.0;
         let widget_center_y = rect.height() / 2.0;
@@ -446,38 +522,6 @@ impl Map {
             }
         }
     }
-
-    /// Draws the attribution text.
-    fn draw_attribution(&self, ui: &mut Ui, rect: &Rect) {
-        if let Some(attribution) = self.config.attribution() {
-            let (_text_color, bg_color) = if ui.visuals().dark_mode {
-                (Color32::from_gray(230), Color32::from_black_alpha(150))
-            } else {
-                (Color32::from_gray(80), Color32::from_white_alpha(150))
-            };
-
-            let frame = egui::Frame::NONE
-                .inner_margin(egui::Margin::same(5)) // A bit of padding
-                .fill(bg_color)
-                .corner_radius(3.0);
-
-            egui::Area::new(ui.id().with("attribution"))
-                .fixed_pos(rect.left_bottom())
-                .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(5.0, -5.0))
-                .show(ui.ctx(), |ui| {
-                    frame.show(ui, |ui| {
-                        ui.style_mut().override_text_style = Some(egui::TextStyle::Small);
-                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend); // Don't wrap attribution text.
-
-                        if let Some(url) = self.config.attribution_url() {
-                            ui.hyperlink_to(attribution, url);
-                        } else {
-                            ui.label(attribution);
-                        }
-                    });
-                });
-        }
-    }
 }
 
 /// Converts longitude to the x-coordinate of a tile at a given zoom level.
@@ -506,9 +550,44 @@ impl Widget for &mut Map {
     fn ui(self, ui: &mut Ui) -> Response {
         let (rect, response) =
             ui.allocate_exact_size(ui.available_size(), Sense::drag().union(Sense::click()));
-        let response_clone = response.clone();
-        self.handle_input(ui, &rect, response_clone);
-        self.draw_map_and_attribution(ui, &rect);
+
+        // Create a projection for input handling, based on the state before any changes.
+        let input_projection = MapProjection::new(self.zoom, self.center, rect);
+
+        let mut input_handled_by_layer = false;
+        for layer in self.layers.values_mut() {
+            if layer.handle_input(&response, &input_projection) {
+                input_handled_by_layer = true;
+                break; // Stop after the first layer handles the input.
+            }
+        }
+
+        if !input_handled_by_layer {
+            self.handle_input(ui, &rect, &response);
+
+            // Change the cursor icon when dragging or hovering over the map.
+            if response.dragged() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+            } else if response.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+            }
+        }
+
+        // Update mouse position.
+        self.mouse_pos = response
+            .hover_pos()
+            .map(|pos| input_projection.unproject(pos));
+
+        self.draw_map(ui, &rect);
+
+        // Create a new projection for drawing, with the updated map state.
+        let draw_projection = MapProjection::new(self.zoom, self.center, rect);
+        let painter = ui.painter_at(rect);
+        for layer in self.layers.values() {
+            layer.draw(&painter, &draw_projection);
+        }
+
+        self.draw_attribution(ui, &rect);
 
         response
     }
@@ -659,7 +738,7 @@ mod tests {
 
         let map = Map::new(config);
 
-        assert_eq!(map.center, default_center);
+        assert_eq!(map.center, default_center.into());
         assert_eq!(map.zoom, default_zoom);
         assert!(map.mouse_pos.is_none());
         assert!(map.tiles.is_empty());
