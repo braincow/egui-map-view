@@ -36,5 +36,5 @@ name = "simple"
 path = "examples/simple.rs"
 
 [[example]]
-name = "drawing"
+name = "draw_layer"
 path = "examples/draw_layer.rs"
