@@ -27,8 +27,9 @@ serde_json = "1.0.143"
 default = ["openstreetmap", "layers"]
 karttapaikka = []
 openstreetmap = []
-layers = ["drawing-layer"]
+layers = ["drawing-layer", "text-layer"]
 drawing-layer = []
+text-layer = []
 
 [[example]]
 name = "simple"
