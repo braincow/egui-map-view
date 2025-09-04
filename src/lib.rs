@@ -551,11 +551,12 @@ impl Widget for &mut Map {
         let (rect, response) =
             ui.allocate_exact_size(ui.available_size(), Sense::drag().union(Sense::click()));
 
-        let projection = MapProjection::new(self.zoom, self.center, rect);
+        // Create a projection for input handling, based on the state before any changes.
+        let input_projection = MapProjection::new(self.zoom, self.center, rect);
 
         let mut input_handled_by_layer = false;
         for layer in self.layers.values_mut() {
-            if layer.handle_input(&response, &projection) {
+            if layer.handle_input(&response, &input_projection) {
                 input_handled_by_layer = true;
                 break; // Stop after the first layer handles the input.
             }
@@ -573,12 +574,17 @@ impl Widget for &mut Map {
         }
 
         // Update mouse position.
-        self.mouse_pos = response.hover_pos().map(|pos| projection.unproject(pos));
+        self.mouse_pos = response
+            .hover_pos()
+            .map(|pos| input_projection.unproject(pos));
 
         self.draw_map(ui, &rect);
+
+        // Create a new projection for drawing, with the updated map state.
+        let draw_projection = MapProjection::new(self.zoom, self.center, rect);
         let painter = ui.painter_at(rect);
         for layer in self.layers.values() {
-            layer.draw(&painter, &projection);
+            layer.draw(&painter, &draw_projection);
         }
 
         self.draw_attribution(ui, &rect);
