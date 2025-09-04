@@ -29,8 +29,8 @@
 //!             .frame(egui::Frame::NONE)
 //!             .show(ctx, |ui| {
 //!                if ui.add(&mut self.map).clicked() {
-//!                    if let Some((lon, lat)) = self.map.mouse_pos {
-//!                        println!("Map clicked at {} x {}", lon, lat);
+//!                    if let Some(pos) = self.map.mouse_pos {
+//!                        println!("Map clicked at {} x {}", pos.lon, pos.lat);
 //!                    }
 //!                };
 //!             });
@@ -46,7 +46,6 @@ pub mod config;
 pub mod layers;
 
 /// Map projection.
-#[cfg(feature = "projection")]
 pub mod projection;
 
 use eframe::egui;
@@ -61,7 +60,7 @@ use thiserror::Error;
 
 use crate::config::MapConfig;
 use crate::layers::Layer;
-use crate::projection::MapProjection;
+use crate::projection::{GeoPos, MapProjection};
 
 // The size of a map tile in pixels.
 const TILE_SIZE: u32 = 256;
@@ -132,7 +131,7 @@ enum Tile {
 /// The map widget.
 pub struct Map {
     /// The geographical center of the map. (longitude, latitude)
-    pub center: (f64, f64),
+    pub center: GeoPos,
 
     /// The zoom level of the map.
     pub zoom: u8,
@@ -140,7 +139,7 @@ pub struct Map {
     tiles: HashMap<TileId, Tile>,
 
     /// The geographical position under the mouse pointer, if any. (longitude, latitude)
-    pub mouse_pos: Option<(f64, f64)>,
+    pub mouse_pos: Option<GeoPos>,
 
     /// Configuration for the map, such as the tile server URL.
     config: Box<dyn MapConfig>,
@@ -156,7 +155,7 @@ impl Map {
     ///
     /// * `config` - A type that implements `MapConfig`, which provides configuration for the map.
     pub fn new<C: MapConfig + 'static>(config: C) -> Self {
-        let center = config.default_center();
+        let center = GeoPos::from(config.default_center());
         let zoom = config.default_zoom();
         Self {
             tiles: HashMap::new(),
@@ -188,8 +187,8 @@ impl Map {
         // Handle panning
         if response.dragged() {
             let delta = response.drag_delta();
-            let center_in_tiles_x = lon_to_x(self.center.0, self.zoom);
-            let center_in_tiles_y = lat_to_y(self.center.1, self.zoom);
+            let center_in_tiles_x = lon_to_x(self.center.lon, self.zoom);
+            let center_in_tiles_y = lat_to_y(self.center.lat, self.zoom);
 
             let mut new_center_x = center_in_tiles_x - (delta.x as f64 / TILE_SIZE as f64);
             let mut new_center_y = center_in_tiles_y - (delta.y as f64 / TILE_SIZE as f64);
@@ -219,7 +218,8 @@ impl Map {
             self.center = (
                 x_to_lon(new_center_x, self.zoom),
                 y_to_lat(new_center_y, self.zoom),
-            );
+            )
+                .into();
         }
 
         // Handle double-click to zoom and center
@@ -230,8 +230,8 @@ impl Map {
                 if new_zoom != self.zoom {
                     // Determine the geo-coordinate under the mouse cursor before the zoom
                     let mouse_rel = pointer_pos - rect.min;
-                    let center_x = lon_to_x(self.center.0, self.zoom);
-                    let center_y = lat_to_y(self.center.1, self.zoom);
+                    let center_x = lon_to_x(self.center.lon, self.zoom);
+                    let center_y = lat_to_y(self.center.lat, self.zoom);
                     let widget_center_x = rect.width() as f64 / 2.0;
                     let widget_center_y = rect.height() as f64 / 2.0;
 
@@ -245,7 +245,7 @@ impl Map {
 
                     // Set the new zoom level and center the map on the clicked location
                     self.zoom = new_zoom;
-                    self.center = (new_center_lon, new_center_lat);
+                    self.center = (new_center_lon, new_center_lat).into();
                 }
             }
         }
@@ -256,8 +256,8 @@ impl Map {
                 let mouse_rel = mouse_pos - rect.min;
 
                 // Determine the geo-coordinate under the mouse cursor.
-                let center_x = lon_to_x(self.center.0, self.zoom);
-                let center_y = lat_to_y(self.center.1, self.zoom);
+                let center_x = lon_to_x(self.center.lon, self.zoom);
+                let center_y = lat_to_y(self.center.lat, self.zoom);
                 let widget_center_x = rect.width() as f64 / 2.0;
                 let widget_center_y = rect.height() as f64 / 2.0;
 
@@ -302,7 +302,8 @@ impl Map {
                         self.center = (
                             x_to_lon(new_center_x, new_zoom),
                             y_to_lat(new_center_y, new_zoom),
-                        );
+                        )
+                            .into();
                     }
                 }
             }
@@ -354,8 +355,8 @@ impl Map {
 
     /// Returns an iterator over the visible tiles.
     fn visible_tiles(&self, rect: &Rect) -> impl Iterator<Item = (TileId, egui::Pos2)> {
-        let center_x = lon_to_x(self.center.0, self.zoom);
-        let center_y = lat_to_y(self.center.1, self.zoom);
+        let center_x = lon_to_x(self.center.lon, self.zoom);
+        let center_y = lat_to_y(self.center.lat, self.zoom);
 
         let widget_center_x = rect.width() / 2.0;
         let widget_center_y = rect.height() / 2.0;
@@ -707,7 +708,7 @@ mod tests {
 
         let map = Map::new(config);
 
-        assert_eq!(map.center, default_center);
+        assert_eq!(map.center, default_center.into());
         assert_eq!(map.zoom, default_zoom);
         assert!(map.mouse_pos.is_none());
         assert!(map.tiles.is_empty());

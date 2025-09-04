@@ -33,12 +33,12 @@
 //!     }
 //! }
 //! ```
-use egui::{Color32, Painter, Response, Stroke};
+use egui::{Color32, Painter, Pos2, Response, Stroke};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 
 use crate::layers::Layer;
-use crate::projection::MapProjection;
+use crate::projection::{GeoPos, MapProjection};
 
 /// The mode of the `DrawingLayer`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,7 +56,7 @@ pub enum DrawMode {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DrawingLayer {
-    polylines: Vec<Vec<(f64, f64)>>,
+    polylines: Vec<Vec<GeoPos>>,
 
     #[serde(skip)]
     /// The stroke style for drawing aka line width and color.
@@ -109,11 +109,11 @@ impl Layer for DrawingLayer {
                     if let Some(pointer_pos) = response.interact_pointer_pos() {
                         let geo_pos = projection.unproject(pointer_pos);
                         if let Some(last_line) = self.polylines.last_mut() {
-                            last_line.push(geo_pos);
+                            last_line.push(geo_pos.into());
                         } else {
                             // No polylines exist yet, so create a new one.
                             let geo_pos2 = projection.unproject(pointer_pos + egui::vec2(1.0, 0.0));
-                            self.polylines.push(vec![geo_pos, geo_pos2]);
+                            self.polylines.push(vec![geo_pos.into(), geo_pos2.into()]);
                         }
                     }
                 }
@@ -126,7 +126,7 @@ impl Layer for DrawingLayer {
                     if let Some(pointer_pos) = response.interact_pointer_pos() {
                         if let Some(last_line) = self.polylines.last_mut() {
                             let geo_pos = projection.unproject(pointer_pos);
-                            last_line.push(geo_pos);
+                            last_line.push(geo_pos.into());
                         }
                     }
                 }
@@ -145,26 +145,40 @@ impl Layer for DrawingLayer {
                         let erase_radius_screen = 10.0;
                         let erase_radius_sq = erase_radius_screen * erase_radius_screen;
 
-                        let mut new_polylines = Vec::new();
                         let old_polylines = std::mem::take(&mut self.polylines);
+                        let mut new_polylines = Vec::with_capacity(old_polylines.len());
 
                         for polyline in old_polylines {
-                            let mut segment = Vec::new();
-                            for point_geo in polyline {
-                                let point_screen = projection.project(point_geo);
-                                if point_screen.distance_sq(pointer_pos) < erase_radius_sq {
-                                    // Point is inside erase radius, finish the current segment.
-                                    if segment.len() > 1 {
-                                        new_polylines.push(segment);
+                            if polyline.len() < 2 {
+                                continue;
+                            }
+
+                            let mut current_segment = vec![polyline[0]];
+
+                            for window in polyline.windows(2) {
+                                let p1_geo = window[0];
+                                let p2_geo = window[1];
+
+                                let p1_screen = projection.project(p1_geo.into());
+                                let p2_screen = projection.project(p2_geo.into());
+
+                                if dist_sq_to_segment(pointer_pos, p1_screen, p2_screen)
+                                    < erase_radius_sq
+                                {
+                                    // This segment is erased. Finalize the previous segment.
+                                    if current_segment.len() > 1 {
+                                        new_polylines.push(current_segment);
                                     }
-                                    segment = Vec::new();
+                                    // Start a new segment from the second point of the erased one.
+                                    current_segment = vec![p2_geo];
                                 } else {
-                                    // Point is outside, add to current segment.
-                                    segment.push(point_geo);
+                                    // This segment is not erased, extend the current one.
+                                    current_segment.push(p2_geo);
                                 }
                             }
-                            if segment.len() > 1 {
-                                new_polylines.push(segment);
+
+                            if current_segment.len() > 1 {
+                                new_polylines.push(current_segment);
                             }
                         }
                         self.polylines = new_polylines;
@@ -178,12 +192,35 @@ impl Layer for DrawingLayer {
     fn draw(&self, painter: &Painter, projection: &MapProjection) {
         for polyline in &self.polylines {
             if polyline.len() > 1 {
-                let screen_points: Vec<egui::Pos2> =
-                    polyline.iter().map(|p| projection.project(*p)).collect();
+                let screen_points: Vec<egui::Pos2> = polyline
+                    .iter()
+                    .map(|p| projection.project((*p).into()))
+                    .collect();
                 painter.add(egui::Shape::line(screen_points, self.stroke));
             }
         }
     }
+}
+
+/// Calculates the squared distance from a point to a line segment.
+fn dist_sq_to_segment(p: Pos2, a: Pos2, b: Pos2) -> f32 {
+    let ab = b - a;
+    let ap = p - a;
+    let l2 = ab.length_sq();
+
+    if l2 == 0.0 {
+        // The segment is a point.
+        return ap.length_sq();
+    }
+
+    // Project point p onto the line defined by a and b.
+    // `t` is the normalized distance from a to the projection.
+    let t = (ap.dot(ab) / l2).clamp(0.0, 1.0);
+
+    // The closest point on the line segment.
+    let closest_point = a + t * ab;
+
+    p.distance_sq(closest_point)
 }
 
 #[cfg(test)]
@@ -213,13 +250,16 @@ mod tests {
     fn drawing_layer_serde() {
         let mut layer = DrawingLayer::default();
         layer.draw_mode = DrawMode::Draw; // This should not be serialized.
-        layer.polylines.push(vec![(1.0, 2.0), (3.0, 4.0)]);
+        layer.polylines.push(vec![
+            GeoPos { lon: 1.0, lat: 2.0 },
+            GeoPos { lon: 3.0, lat: 4.0 },
+        ]);
         layer.stroke = Stroke::new(5.0, Color32::BLUE); // This should not be serialized.
 
         let json = serde_json::to_string(&layer).unwrap();
 
         // The serialized string should only contain polylines.
-        assert!(json.contains(r#""polylines":[[[1.0,2.0],[3.0,4.0]]]"#));
+        assert!(json.contains(r#""polylines":[[{"lon":1.0,"lat":2.0},{"lon":3.0,"lat":4.0}]]"#));
         assert!(!json.contains("draw_mode"));
         assert!(!json.contains("stroke"));
 

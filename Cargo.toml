@@ -28,8 +28,7 @@ default = ["openstreetmap", "layers"]
 karttapaikka = []
 openstreetmap = []
 layers = ["drawing-layer"]
-drawing-layer = ["projection"]
-projection = []
+drawing-layer = []
 
 [[example]]
 name = "simple"
