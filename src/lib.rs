@@ -172,6 +172,15 @@ impl Map {
         self.layers.insert(key.into(), Box::new(layer));
     }
 
+    /// Remove a layer from the map
+    pub fn remove_layer(&mut self, key: &str) -> bool {
+        if self.layers.remove(key).is_some() {
+            true
+        } else {
+            false
+        }
+    }
+
     /// Get a reference to the layers.
     pub fn layers(&self) -> &BTreeMap<String, Box<dyn Layer>> {
         &self.layers
