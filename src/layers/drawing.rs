@@ -136,7 +136,7 @@ impl DrawingLayer {
     }
 
     fn erase_at(&mut self, pointer_pos: Pos2, projection: &MapProjection) {
-        let erase_radius_screen = 10.0;
+        let erase_radius_screen = self.stroke.width;
         let erase_radius_sq = erase_radius_screen * erase_radius_screen;
 
         let old_polylines = std::mem::take(&mut self.polylines);
