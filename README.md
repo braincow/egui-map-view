@@ -9,6 +9,8 @@ A simple, interactive map view widget for `egui`.
 
 `egui-map-view` provides a pannable, zoomable map widget that fetches and displays tiles from a configurable tile server, making it easy to integrate interactive maps into your `egui` applications.
 
+(Like it is the way of the times we live in Gemini codeassist LLM has been used in places to rework parts of the code and to bring more features to the codebase.)
+
 ## Features
 
 * **Interactive Navigation**: Pan by dragging, zoom with the mouse wheel or center and zoom with double-clicking.
