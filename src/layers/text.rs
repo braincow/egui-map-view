@@ -171,31 +171,21 @@ impl TextLayer {
             }
         }
 
-        if !response.dragged() {
-            // Right-click to open context menu
-            if response.secondary_clicked() {
-                if let Some(pointer_pos) = response.interact_pointer_pos() {
-                    self.last_right_clicked_index =
-                        self.find_text_at(pointer_pos, projection, &response.ctx);
-                }
-            }
-
+        if !response.dragged() && response.clicked() {
             // Left-click to add or edit a text element
-            if response.clicked() {
-                if let Some(pointer_pos) = response.interact_pointer_pos() {
-                    if let Some(index) = self.find_text_at(pointer_pos, projection, &response.ctx) {
-                        // Clicked on an existing text, start editing it.
-                        self.start_editing(index);
-                    } else {
-                        // Clicked on an empty spot, start adding a new text.
-                        let geo_pos = projection.unproject(pointer_pos);
-                        let mut properties = self.new_text_properties.clone();
-                        properties.pos = geo_pos;
-                        self.editing = Some(EditingText {
-                            index: None,
-                            properties,
-                        });
-                    }
+            if let Some(pointer_pos) = response.interact_pointer_pos() {
+                if let Some(index) = self.find_text_at(pointer_pos, projection, &response.ctx) {
+                    // Clicked on an existing text, start editing it.
+                    self.start_editing(index);
+                } else {
+                    // Clicked on an empty spot, start adding a new text.
+                    let geo_pos = projection.unproject(pointer_pos);
+                    let mut properties = self.new_text_properties.clone();
+                    properties.pos = geo_pos;
+                    self.editing = Some(EditingText {
+                        index: None,
+                        properties,
+                    });
                 }
             }
         }

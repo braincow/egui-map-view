@@ -37,33 +37,6 @@ impl Default for MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let map_response = egui::CentralPanel::default()
-            .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
-                ui.add(&mut self.map);
-            })
-            .response;
-
-        // Handle context menu from right-clicking on a text element.
-        map_response.context_menu(|ui| {
-            if let Some(layer) = self.map.layer_mut::<TextLayer>("text_layer") {
-                if let Some(index) = layer.last_right_clicked_index.take() {
-                    ui.label("Text Options");
-                    if ui.button("Edit").clicked() {
-                        layer.start_editing(index);
-                        ui.close();
-                    }
-                    if ui.button("Delete").clicked() {
-                        layer.delete(index);
-                        ui.close();
-                    }
-                } else {
-                    // If no text was clicked, you could add other options here.
-                    ui.label("Map");
-                }
-            }
-        });
-
         // Show the main controls window.
         egui::Window::new("Controls")
             .resizable(false)
