@@ -53,6 +53,11 @@ use thiserror::Error;
 
 use crate::config::MapConfig;
 
+#[cfg(feature = "cached-tiles")]
+use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
+#[cfg(feature = "cached-tiles")]
+use reqwest_middleware::ClientBuilder;
+
 // The size of a map tile in pixels.
 const TILE_SIZE: u32 = 256;
 /// The minimum zoom level.
@@ -61,6 +66,7 @@ pub const MIN_ZOOM: u8 = 0;
 pub const MAX_ZOOM: u8 = 19;
 
 // Reuse the reqwest client for all tile downloads by making it a static variable.
+#[cfg(not(feature = "cached-tiles"))]
 static CLIENT: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
     reqwest::blocking::Client::builder()
         .user_agent(format!(
@@ -70,6 +76,18 @@ static CLIENT: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
         ))
         .build()
         .expect("Failed to build reqwest client")
+});
+
+// Reuse a reqwest client for all tile downloads, but also add a disk cache
+#[cfg(feature = "cached-tiles")]
+static CLIENT: Lazy<reqwest_middleware::ClientWithMiddleware> = Lazy::new(|| {
+    ClientBuilder::new(reqwest::blocking::Client::new())
+        .with(Cache(HttpCache {
+            mode: CacheMode::Default,
+            manager: CACacheManager::new(),
+            options: HttpCacheOptions::default(),
+        }))
+        .build()
 });
 
 /// Errors that can occur while using the map widget.
