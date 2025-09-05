@@ -1,7 +1,7 @@
 [package]
 name = "egui-map-view"
 description = "An slippy map viewer for egui applications."
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/braincow/egui-map-view"
@@ -9,7 +9,7 @@ homepage = "https://github.com/braincow/egui-map-view"
 keywords = ["egui", "map", "openstreetmap"]
 
 [dependencies]
-eframe = "0.32.1"
+eframe = "0.32.2"
 poll-promise = "0.3"
 image = "0.25"
 reqwest = { version = "0.12", features = ["blocking"] }
@@ -17,7 +17,7 @@ thiserror = "2.0.16"
 log = "0.4.28"
 eyre = "0.6.12"
 once_cell = "1.17.2"
-egui = "0.32.1"
+egui = "0.32.2"
 serde = { version = "1.0.219", features = ["derive"] }
 
 [dev-dependencies]
