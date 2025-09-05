@@ -9,6 +9,10 @@ use crate::projection::MapProjection;
 #[cfg(feature = "drawing-layer")]
 pub mod drawing;
 
+/// Text layer
+#[cfg(feature = "text-layer")]
+pub mod text;
+
 /// A trait for map layers.
 pub trait Layer: Any {
     /// Handles user input for the layer. Returns `true` if the input was handled and should not be
