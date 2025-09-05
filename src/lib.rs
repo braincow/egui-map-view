@@ -548,8 +548,8 @@ fn y_to_lat(y: f64, zoom: u8) -> f64 {
 
 impl Widget for &mut Map {
     fn ui(self, ui: &mut Ui) -> Response {
-        let (rect, response) =
-            ui.allocate_exact_size(ui.available_size(), Sense::drag().union(Sense::click()));
+        let response = ui.allocate_response(ui.available_size(), Sense::drag().union(Sense::click()));
+        let rect = response.rect;
 
         // Create a projection for input handling, based on the state before any changes.
         let input_projection = MapProjection::new(self.zoom, self.center, rect);
