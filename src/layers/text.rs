@@ -194,8 +194,8 @@ impl TextLayer {
     fn handle_modify_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
         if self.editing.is_some() {
             // While editing in a dialog, we don't want to interact with the map.
-            // But we do want to consume drags on the map to prevent panning.
-            return response.dragged();
+            // We consume all hover events to prevent panning and zooming.
+            return response.hovered();
         }
 
         if response.drag_started() {
