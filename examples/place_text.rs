@@ -37,6 +37,12 @@ impl Default for MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ctx, |ui| {
+                ui.add(&mut self.map);
+            });
+
         // Show the main controls window.
         egui::Window::new("Controls")
             .resizable(false)
