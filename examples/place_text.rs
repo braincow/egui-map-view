@@ -79,8 +79,10 @@ impl eframe::App for MyApp {
 
         // Show the edit window if we are adding or modifying a text element.
         if let Some(layer) = self.map.layer_mut::<TextLayer>("text_layer") {
-            if let Some(mut editing) = layer.editing.clone() {
+            // Take the editing state out of the layer to modify it.
+            if let Some(mut editing) = layer.editing.take() {
                 let mut open = true;
+                let mut should_commit = false;
                 let title = if editing.index.is_some() {
                     "Edit Text"
                 } else {
@@ -127,17 +129,21 @@ impl eframe::App for MyApp {
                         ui.separator();
                         ui.horizontal(|ui| {
                             if ui.button("Ok").clicked() {
-                                layer.editing = Some(editing); // Put it back with changes
-                                layer.commit_edit();
+                                should_commit = true;
+                                open = false; // This will close the window.
                             }
                             if ui.button("Cancel").clicked() {
-                                layer.cancel_edit();
+                                open = false; // This will close the window.
                             }
                         });
                     });
 
-                if !open {
-                    layer.cancel_edit();
+                if should_commit {
+                    layer.editing = Some(editing);
+                    layer.commit_edit();
+                } else if open {
+                    // If the window is still open, put the editing state back for the next frame.
+                    layer.editing = Some(editing);
                 }
             }
         }
