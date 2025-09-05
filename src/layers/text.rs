@@ -67,9 +67,6 @@ pub struct TextLayer {
     /// The state of the text currently being edited or added.
     pub editing: Option<EditingText>,
 
-    /// The index of the last right-clicked text element.
-    pub last_right_clicked_index: Option<usize>,
-
     dragged_text_index: Option<usize>,
 }
 
@@ -86,7 +83,6 @@ impl Default for TextLayer {
                 background: Color32::from_rgba_premultiplied(255, 255, 255, 180),
             },
             editing: None,
-            last_right_clicked_index: None,
             dragged_text_index: None,
         }
     }
