@@ -60,6 +60,13 @@ pub enum TextSize {
     Relative(f32),
 }
 
+impl Default for TextSize {
+    fn default() -> Self {
+        // A reasonable default.
+        Self::Static(12.0)
+    }
+}
+
 /// A piece of text on the map.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Text {
@@ -79,6 +86,18 @@ pub struct Text {
     /// The color of the background.
     #[serde(with = "ser_color")]
     pub background: Color32,
+}
+
+impl Default for Text {
+    fn default() -> Self {
+        Self {
+            text: "New Text".to_string(),
+            pos: GeoPos { lon: 0.0, lat: 0.0 }, // This will be updated on click.
+            size: TextSize::default(),
+            color: Color32::BLACK,
+            background: Color32::from_rgba_unmultiplied(255, 255, 255, 180),
+        }
+    }
 }
 
 /// The state of the text currently being edited or added.
@@ -127,13 +146,7 @@ impl Default for TextLayer {
         Self {
             texts: Vec::new(),
             mode: TextLayerMode::default(),
-            new_text_properties: Text {
-                text: "New Text".to_string(),
-                pos: GeoPos { lon: 0.0, lat: 0.0 }, // This will be updated on click.
-                size: TextSize::Static(12.0),
-                color: Color32::BLACK,
-                background: Color32::from_rgba_unmultiplied(255, 255, 255, 180),
-            },
+            new_text_properties: Text::default(),
             editing: None,
             dragged_text_index: None,
         }
