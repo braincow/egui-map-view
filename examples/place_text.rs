@@ -2,6 +2,7 @@
 #![allow(rustdoc::missing_crate_level_docs)] // it's an example
 
 use eframe::egui;
+use egui::UiKind;
 use egui_map_view::{
     Map,
     config::OpenStreetMapConfig,
@@ -130,10 +131,11 @@ impl eframe::App for MyApp {
                         ui.horizontal(|ui| {
                             if ui.button("Ok").clicked() {
                                 should_commit = true;
-                                open = false; // This will close the window.
+                                ui.close_kind(UiKind::Window);
                             }
                             if ui.button("Cancel").clicked() {
-                                open = false; // This will close the window.
+                                should_commit = false;
+                                ui.close_kind(UiKind::Window);
                             }
                         });
                     });
