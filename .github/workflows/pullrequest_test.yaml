@@ -1,4 +1,6 @@
 name: Test Pull Request with Cargo
+permissions:
+  contents: read
 
 on:
   pull_request:
