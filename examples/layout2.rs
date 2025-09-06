@@ -38,12 +38,17 @@ impl eframe::App for MyApp {
             ui.label(self.map.zoom.to_string());
 
             ui.horizontal(|ui| {
-                if ui.add(&mut self.map).clicked() {
-                    if let Some(pos) = self.map.mouse_pos {
-                        println!("{},{}", pos.lon, pos.lat);
+                // By using a right-to-left layout, we can have a widget on the right
+                // that takes its preferred size, and then have the map fill the rest.
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label("right to map");
+                    // The map widget will take up all the remaining space.
+                    if ui.add_sized(ui.available_size(), &mut self.map).clicked() {
+                        if let Some(pos) = self.map.mouse_pos {
+                            println!("{},{}", pos.lon, pos.lat);
+                        }
                     }
-                }
-                ui.label("right to map")
+                });
             });
 
             ui.label("below map will eat whats left from the horizontal layout");
