@@ -39,6 +39,14 @@ impl eframe::App for MyApp {
             ui.label("This is the left panel.");
         });
 
+        egui::SidePanel::right("right_panel").show(ctx, |ui| {
+            ui.label("This is the right panel.");
+        });
+
+        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+            ui.label("This is the bottom panel.");
+        });
+
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
