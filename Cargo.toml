@@ -46,3 +46,7 @@ path = "examples/draw_many_layers.rs"
 [[example]]
 name = "layout"
 path = "examples/layout.rs"
+
+[[example]]
+name = "layout2"
+path = "examples/layout2.rs"

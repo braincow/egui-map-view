@@ -49,7 +49,7 @@ pub mod layers;
 pub mod projection;
 
 use eframe::egui;
-use egui::{Color32, Rect, Response, Sense, Ui, Vec2, Widget, pos2};
+use egui::{Color32, NumExt, Rect, Response, Sense, Ui, Vec2, Widget, pos2};
 use eyre::{Context, Result};
 use log::{debug, error};
 use once_cell::sync::Lazy;
@@ -553,8 +553,12 @@ fn y_to_lat(y: f64, zoom: u8) -> f64 {
 
 impl Widget for &mut Map {
     fn ui(self, ui: &mut Ui) -> Response {
-        let response =
-            ui.allocate_response(ui.available_size(), Sense::drag().union(Sense::click()));
+        // Give it a minimum size so that it does not become too small
+        // in a horizontal layout. Use tile size as minimum.
+        let desired_size = ui
+            .available_size()
+            .at_least(Vec2::new(TILE_SIZE as f32, TILE_SIZE as f32));
+        let response = ui.allocate_response(desired_size, Sense::drag().union(Sense::click()));
         let rect = response.rect;
 
         // Create a projection for input handling, based on the state before any changes.
