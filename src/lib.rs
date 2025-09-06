@@ -346,6 +346,11 @@ impl Map {
 
     /// Draws the attribution text.
     fn draw_attribution(&self, ui: &mut Ui, rect: &Rect) {
+        // Check if the widget is scrolled out of view or clipped.
+        if !ui.is_rect_visible(*rect) {
+            return;
+        }
+
         if let Some(attribution) = self.config.attribution() {
             let (_text_color, bg_color) = if ui.visuals().dark_mode {
                 (Color32::from_gray(230), Color32::from_black_alpha(150))
