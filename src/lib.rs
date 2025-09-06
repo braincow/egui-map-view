@@ -354,13 +354,18 @@ impl Map {
             };
 
             let frame = egui::Frame::NONE
-                .inner_margin(egui::Margin::same(5)) // A bit of padding
+                .inner_margin(egui::Margin::same(5)) // A bit of padding around the label/URL element
                 .fill(bg_color)
-                .corner_radius(3.0);
+                .corner_radius(3.0); // Round the edges
 
             egui::Area::new(ui.id().with("attribution"))
-                .fixed_pos(rect.left_bottom())
-                .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(5.0, -5.0))
+                // pivot(egui::Align2::LEFT_BOTTOM) tells the Area that its position should be
+                //  calculated from its bottom-left corner, not its top-left.
+                .pivot(egui::Align2::LEFT_BOTTOM)
+                // fixed_pos(rect.left_bottom() + egui::vec2(5.0, -5.0)) now positions the Area's
+                //  bottom-left corner at the map's bottom-left corner, with a small margin to bring
+                //  it nicely inside the map's bounds.
+                .fixed_pos(rect.left_bottom() + egui::vec2(5.0, -5.0))
                 .show(ui.ctx(), |ui| {
                     frame.show(ui, |ui| {
                         ui.style_mut().override_text_style = Some(egui::TextStyle::Small);
@@ -548,7 +553,8 @@ fn y_to_lat(y: f64, zoom: u8) -> f64 {
 
 impl Widget for &mut Map {
     fn ui(self, ui: &mut Ui) -> Response {
-        let response = ui.allocate_response(ui.available_size(), Sense::drag().union(Sense::click()));
+        let response =
+            ui.allocate_response(ui.available_size(), Sense::drag().union(Sense::click()));
         let rect = response.rect;
 
         // Create a projection for input handling, based on the state before any changes.
