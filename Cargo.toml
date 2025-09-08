@@ -54,3 +54,7 @@ path = "examples/layout2.rs"
 [[example]]
 name = "layout3"
 path = "examples/layout3.rs"
+
+[[example]]
+name = "layout4"
+path = "examples/layout4.rs"
