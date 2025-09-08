@@ -558,8 +558,20 @@ fn y_to_lat(y: f64, zoom: u8) -> f64 {
 
 impl Widget for &mut Map {
     fn ui(self, ui: &mut Ui) -> Response {
-        let desired_size = Vec2::splat(TILE_SIZE as f32);
-        let desired_size = desired_size.at_least(Vec2::splat(TILE_SIZE as f32));
+        // Give it a minimum size so that it does not become too small
+        // in a horizontal layout. Use tile size as minimum.
+        let desired_size = if ui.layout().main_dir().is_horizontal() {
+            // In a horizontal layout, we want to be a square of a reasonable size.
+            let side = TILE_SIZE as f32;
+            Vec2::splat(side)
+        } else {
+            // In a vertical layout, we want to fill the available space, but only width
+            let mut available_size = ui
+                .available_size()
+                .at_least(Vec2::new(TILE_SIZE as f32, TILE_SIZE as f32));
+            available_size.y = TILE_SIZE as f32;
+            available_size
+        };
 
         let response = ui.allocate_response(desired_size, Sense::drag().union(Sense::click()));
         let rect = response.rect;

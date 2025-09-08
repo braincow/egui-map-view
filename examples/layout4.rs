@@ -42,7 +42,7 @@ impl eframe::App for MyApp {
             ui.label("This");
             ui.label("is");
             ui.label("now");
-            ui.label("visible");
+            ui.label("visible.");
         });
     }
 }
