@@ -40,7 +40,7 @@ impl eframe::App for MyApp {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
-                ui.add(&mut self.map);
+                ui.add_sized(ui.available_size_before_wrap(), &mut self.map);
             });
 
         // Show the main controls window.

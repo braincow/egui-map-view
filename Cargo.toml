@@ -1,7 +1,7 @@
 [package]
 name = "egui-map-view"
 description = "An slippy map viewer for egui applications."
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/braincow/egui-map-view"
@@ -42,3 +42,19 @@ path = "examples/draw_layer.rs"
 [[example]]
 name = "draw_many_layers"
 path = "examples/draw_many_layers.rs"
+
+[[example]]
+name = "layout"
+path = "examples/layout.rs"
+
+[[example]]
+name = "layout2"
+path = "examples/layout2.rs"
+
+[[example]]
+name = "layout3"
+path = "examples/layout3.rs"
+
+[[example]]
+name = "layout4"
+path = "examples/layout4.rs"

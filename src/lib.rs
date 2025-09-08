@@ -49,7 +49,7 @@ pub mod layers;
 pub mod projection;
 
 use eframe::egui;
-use egui::{Color32, Rect, Response, Sense, Ui, Vec2, Widget, pos2};
+use egui::{Color32, NumExt, Rect, Response, Sense, Ui, Vec2, Widget, pos2};
 use eyre::{Context, Result};
 use log::{debug, error};
 use once_cell::sync::Lazy;
@@ -346,6 +346,11 @@ impl Map {
 
     /// Draws the attribution text.
     fn draw_attribution(&self, ui: &mut Ui, rect: &Rect) {
+        // Check if the widget is scrolled out of view or clipped.
+        if !ui.is_rect_visible(*rect) {
+            return;
+        }
+
         if let Some(attribution) = self.config.attribution() {
             let (_text_color, bg_color) = if ui.visuals().dark_mode {
                 (Color32::from_gray(230), Color32::from_black_alpha(150))
@@ -354,13 +359,18 @@ impl Map {
             };
 
             let frame = egui::Frame::NONE
-                .inner_margin(egui::Margin::same(5)) // A bit of padding
+                .inner_margin(egui::Margin::same(5)) // A bit of padding around the label/URL element
                 .fill(bg_color)
-                .corner_radius(3.0);
+                .corner_radius(3.0); // Round the edges
 
             egui::Area::new(ui.id().with("attribution"))
-                .fixed_pos(rect.left_bottom())
-                .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(5.0, -5.0))
+                // pivot(egui::Align2::LEFT_BOTTOM) tells the Area that its position should be
+                //  calculated from its bottom-left corner, not its top-left.
+                .pivot(egui::Align2::LEFT_BOTTOM)
+                // fixed_pos(rect.left_bottom() + egui::vec2(5.0, -5.0)) now positions the Area's
+                //  bottom-left corner at the map's bottom-left corner, with a small margin to bring
+                //  it nicely inside the map's bounds.
+                .fixed_pos(rect.left_bottom() + egui::vec2(5.0, -5.0))
                 .show(ui.ctx(), |ui| {
                     frame.show(ui, |ui| {
                         ui.style_mut().override_text_style = Some(egui::TextStyle::Small);
@@ -548,8 +558,23 @@ fn y_to_lat(y: f64, zoom: u8) -> f64 {
 
 impl Widget for &mut Map {
     fn ui(self, ui: &mut Ui) -> Response {
-        let (rect, response) =
-            ui.allocate_exact_size(ui.available_size(), Sense::drag().union(Sense::click()));
+        // Give it a minimum size so that it does not become too small
+        // in a horizontal layout. Use tile size as minimum.
+        let desired_size = if ui.layout().main_dir().is_horizontal() {
+            // In a horizontal layout, we want to be a square of a reasonable size.
+            let side = TILE_SIZE as f32;
+            Vec2::splat(side)
+        } else {
+            // In a vertical layout, we want to fill the available space, but only width
+            let mut available_size = ui
+                .available_size()
+                .at_least(Vec2::new(TILE_SIZE as f32, TILE_SIZE as f32));
+            available_size.y = TILE_SIZE as f32;
+            available_size
+        };
+
+        let response = ui.allocate_response(desired_size, Sense::drag().union(Sense::click()));
+        let rect = response.rect;
 
         // Create a projection for input handling, based on the state before any changes.
         let input_projection = MapProjection::new(self.zoom, self.center, rect);

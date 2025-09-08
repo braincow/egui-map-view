@@ -31,11 +31,18 @@ impl Default for MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default()
-            .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
-                ui.add_sized(ui.available_size_before_wrap(), &mut self.map)
-                    .clicked();
-            });
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("EXAMPLE");
+            ui.label(self.map.center.lon.to_string());
+            ui.label(self.map.center.lat.to_string());
+            ui.label(self.map.zoom.to_string());
+
+            ui.add(&mut self.map);
+
+            ui.label("This");
+            ui.label("is");
+            ui.label("now");
+            ui.label("visible.");
+        });
     }
 }

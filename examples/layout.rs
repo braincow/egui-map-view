@@ -31,6 +31,22 @@ impl Default for MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            ui.label("This is the top panel.");
+        });
+
+        egui::SidePanel::left("left_panel").show(ctx, |ui| {
+            ui.label("This is the left panel.");
+        });
+
+        egui::SidePanel::right("right_panel").show(ctx, |ui| {
+            ui.label("This is the right panel.");
+        });
+
+        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+            ui.label("This is the bottom panel.");
+        });
+
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
