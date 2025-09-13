@@ -207,9 +207,11 @@ impl Layer for AreaLayer {
                 painter.add(Shape::line(screen_points.clone(), self.stroke));
             }
 
-            // Draw nodes
-            for point in &screen_points {
-                painter.circle_filled(*point, self.node_radius, self.node_fill);
+            // Draw nodes only when in modify mode
+            if self.mode == AreaMode::Modify {
+                for point in &screen_points {
+                    painter.circle_filled(*point, self.node_radius, self.node_fill);
+                }
             }
         }
     }
