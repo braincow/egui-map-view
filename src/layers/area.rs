@@ -41,7 +41,7 @@
 
 use crate::layers::{Layer, dist_sq_to_segment, projection_factor, segments_intersect};
 use crate::projection::{GeoPos, MapProjection};
-use egui::{Color32, Painter, Pos2, Response, Shape, Stroke};
+use egui::{Color32, Mesh, Painter, Pos2, Response, Shape, Stroke};
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
@@ -307,11 +307,33 @@ impl Layer for AreaLayer {
 
             // Draw polygon outline
             if area.points.len() >= 3 {
-                painter.add(Shape::convex_polygon(
-                    screen_points.clone(),
-                    self.fill,
-                    self.stroke,
-                ));
+                // Use a generic path for the stroke.
+                let path_shape = Shape::Path(egui::epaint::PathShape {
+                    points: screen_points.clone(),
+                    closed: true,
+                    fill: Color32::TRANSPARENT,
+                    stroke: self.stroke.into(),
+                });
+                painter.add(path_shape);
+
+                // Triangulate for the fill.
+                let flat_points: Vec<f64> = screen_points
+                    .iter()
+                    .flat_map(|p| [p.x as f64, p.y as f64])
+                    .collect();
+                let indices = earcutr::earcut(&flat_points, &[], 2).unwrap(); // <-- TODO: FIX UNWRAP!
+
+                let mut mesh = Mesh::default();
+                mesh.vertices = screen_points
+                    .iter()
+                    .map(|p| egui::epaint::Vertex {
+                        pos: *p,
+                        uv: Default::default(),
+                        color: self.fill,
+                    })
+                    .collect();
+                mesh.indices = indices.into_iter().map(|i| i as u32).collect();
+                painter.add(Shape::Mesh(mesh.into()));
             } else {
                 warn!("Invalid amount of points in area. {:?}", area);
             }
