@@ -42,6 +42,7 @@
 use crate::layers::Layer;
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Painter, Pos2, Response, Shape, Stroke};
+use log::warn;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 
@@ -203,8 +204,7 @@ impl Layer for AreaLayer {
                     self.stroke,
                 ));
             } else {
-                // Just a line if less than 3 points
-                painter.add(Shape::line(screen_points.clone(), self.stroke));
+                warn!("Invalid amount of points in area. {:?}", area);
             }
 
             // Draw nodes only when in modify mode
