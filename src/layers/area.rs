@@ -121,6 +121,33 @@ impl AreaLayer {
     }
 
     fn handle_modify_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
+        if response.double_clicked() {
+            if let Some(pointer_pos) = response.interact_pointer_pos() {
+                if self.find_node_at(pointer_pos, projection).is_none() {
+                    if let Some((area_idx, node_idx)) =
+                        self.find_line_segment_at(pointer_pos, projection)
+                    {
+                        if let Some(area) = self.areas.get_mut(area_idx) {
+                            let p1_screen = projection.project(area.points[node_idx]);
+                            let p2_screen =
+                                projection.project(area.points[(node_idx + 1) % area.points.len()]);
+
+                            let t = projection_factor(pointer_pos, p1_screen, p2_screen);
+
+                            // Interpolate in screen space and unproject to get the new geographical position.
+                            let new_pos_screen = p1_screen.lerp(p2_screen, t);
+                            let new_pos_geo = projection.unproject(new_pos_screen);
+
+                            area.points.insert(node_idx + 1, new_pos_geo);
+
+                            // This interaction is fully handled, so we can return.
+                            return response.hovered();
+                        }
+                    }
+                }
+            }
+        }
+
         if response.drag_started() {
             if let Some(pointer_pos) = response.interact_pointer_pos() {
                 self.dragged_node = self.find_node_at(pointer_pos, projection);
@@ -129,7 +156,7 @@ impl AreaLayer {
 
         if response.dragged() {
             if let Some((area_idx, node_idx)) = self.dragged_node {
-                if let Some(pointer_pos) = response.interact_pointer_pos() {
+                if let Some(pointer_pos) = response.ctx.input(|i| i.pointer.interact_pos()) {
                     if let Some(area) = self.areas.get_mut(area_idx) {
                         if let Some(node) = area.points.get_mut(node_idx) {
                             *node = projection.unproject(pointer_pos);
@@ -143,7 +170,9 @@ impl AreaLayer {
             self.dragged_node = None;
         }
 
-        if self.dragged_node.is_some() {
+        let is_dragging = self.dragged_node.is_some();
+
+        if is_dragging {
             response.ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
         } else if let Some(pointer_pos) = response.hover_pos() {
             if self.find_node_at(pointer_pos, projection).is_some() {
@@ -151,40 +180,11 @@ impl AreaLayer {
             }
         }
 
-        if response.double_clicked() {
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
-                if self.find_node_at(pointer_pos, projection).is_none() {
-                    if let Some((area_idx, node_idx)) =
-                        self.find_line_segment_at(pointer_pos, projection)
-                    {
-                        if let Some(area) = self.areas.get_mut(area_idx) {
-                            let p1 = area.points[node_idx];
-                            let p2 = area.points[(node_idx + 1) % area.points.len()];
-
-                            let p1_screen = projection.project(p1);
-                            let p2_screen = projection.project(p2);
-
-                            let t = projection_factor(pointer_pos, p1_screen, p2_screen);
-
-                            // Interpolate in screen space and unproject to get the new geographical position.
-                            let new_pos_screen = p1_screen.lerp(p2_screen, t);
-                            let new_pos_geo = projection.unproject(new_pos_screen);
-
-                            area.points.insert(node_idx + 1, new_pos_geo);
-
-                            // Start dragging the new node immediately.
-                            self.dragged_node = Some((area_idx, node_idx + 1));
-                        }
-                    }
-                }
-            }
-        }
-
-        response.hovered()
+        is_dragging || response.hovered()
     }
 
     fn find_node_at(&self, screen_pos: Pos2, projection: &MapProjection) -> Option<(usize, usize)> {
-        let click_tolerance_sq = (self.node_radius * 2.0).powi(2);
+        let click_tolerance_sq = (self.node_radius * 4.0).powi(2);
 
         for (area_idx, area) in self.areas.iter().enumerate().rev() {
             for (node_idx, node) in area.points.iter().enumerate() {
