@@ -39,7 +39,7 @@
 //! }
 //! ```
 
-use crate::layers::{Layer, dist_sq_to_segment, projection_factor};
+use crate::layers::{Layer, dist_sq_to_segment, projection_factor, segments_intersect};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Painter, Pos2, Response, Shape, Stroke};
 use log::warn;
@@ -157,9 +157,11 @@ impl AreaLayer {
         if response.dragged() {
             if let Some((area_idx, node_idx)) = self.dragged_node {
                 if let Some(pointer_pos) = response.ctx.input(|i| i.pointer.interact_pos()) {
-                    if let Some(area) = self.areas.get_mut(area_idx) {
-                        if let Some(node) = area.points.get_mut(node_idx) {
-                            *node = projection.unproject(pointer_pos);
+                    if self.is_move_valid(area_idx, node_idx, pointer_pos, projection) {
+                        if let Some(area) = self.areas.get_mut(area_idx) {
+                            if let Some(node) = area.points.get_mut(node_idx) {
+                                *node = projection.unproject(pointer_pos);
+                            }
                         }
                     }
                 }
@@ -184,7 +186,7 @@ impl AreaLayer {
     }
 
     fn find_node_at(&self, screen_pos: Pos2, projection: &MapProjection) -> Option<(usize, usize)> {
-        let click_tolerance_sq = (self.node_radius * 4.0).powi(2);
+        let click_tolerance_sq = (self.node_radius * 3.0).powi(2);
 
         for (area_idx, area) in self.areas.iter().enumerate().rev() {
             for (node_idx, node) in area.points.iter().enumerate() {
@@ -218,6 +220,63 @@ impl AreaLayer {
             }
         }
         None
+    }
+
+    /// Checks if moving a node to a new position would cause the polygon to self-intersect.
+    fn is_move_valid(
+        &self,
+        area_idx: usize,
+        node_idx: usize,
+        new_screen_pos: Pos2,
+        projection: &MapProjection,
+    ) -> bool {
+        let area = if let Some(area) = self.areas.get(area_idx) {
+            area
+        } else {
+            return false; // Should not happen
+        };
+
+        if area.points.len() < 3 {
+            return true; // Not a polygon, no intersections possible.
+        }
+
+        let screen_points: Vec<Pos2> = area.points.iter().map(|p| projection.project(*p)).collect();
+
+        let n = screen_points.len();
+        let prev_node_idx = (node_idx + n - 1) % n;
+        let next_node_idx = (node_idx + 1) % n;
+
+        // The two edges that are being modified by the drag.
+        let new_edge1 = (screen_points[prev_node_idx], new_screen_pos);
+        let new_edge2 = (new_screen_pos, screen_points[next_node_idx]);
+
+        for i in 0..n {
+            let p1_idx = i;
+            let p2_idx = (i + 1) % n;
+
+            // Don't check against the edges connected to the dragged node.
+            if p1_idx == node_idx || p2_idx == node_idx {
+                continue;
+            }
+
+            let edge_to_check = (screen_points[p1_idx], screen_points[p2_idx]);
+
+            // Check against the first new edge.
+            if p1_idx != prev_node_idx && p2_idx != prev_node_idx {
+                if segments_intersect(new_edge1.0, new_edge1.1, edge_to_check.0, edge_to_check.1) {
+                    return false;
+                }
+            }
+
+            // Check against the second new edge.
+            if p1_idx != next_node_idx && p2_idx != next_node_idx {
+                if segments_intersect(new_edge2.0, new_edge2.1, edge_to_check.0, edge_to_check.1) {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 }
 
