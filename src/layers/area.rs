@@ -184,10 +184,12 @@ impl AreaLayer {
     }
 
     fn find_node_at(&self, screen_pos: Pos2, projection: &MapProjection) -> Option<(usize, usize)> {
+        let click_tolerance_sq = (self.node_radius * 2.0).powi(2);
+
         for (area_idx, area) in self.areas.iter().enumerate().rev() {
             for (node_idx, node) in area.points.iter().enumerate() {
                 let node_screen_pos = projection.project(*node);
-                if node_screen_pos.distance(screen_pos) < self.node_radius * 2.0 {
+                if node_screen_pos.distance_sq(screen_pos) < click_tolerance_sq {
                     return Some((area_idx, node_idx));
                 }
             }
