@@ -38,8 +38,6 @@ impl Default for MyApp {
                 (center_lon, center_lat + 1.0).into(),
             ],
         });
-        area_layer.mode = AreaMode::Modify;
-
         map.add_layer("areas", area_layer);
         Self { map }
     }
@@ -54,31 +52,26 @@ impl eframe::App for MyApp {
                     .clicked();
             });
 
-        //     egui::Window::new("Drawing")
-        //         .resizable(false)
-        //         .default_width(280.0)
-        //         .show(ctx, |ui| {
-        //             if let Some(drawing_layer) = self.map.layer_mut::<DrawingLayer>("drawing") {
-        //                 ui.label("Mode");
-        //                 ui.horizontal(|ui| {
-        //                     ui.radio_value(
-        //                         &mut drawing_layer.draw_mode,
-        //                         DrawMode::Disabled,
-        //                         "Disabled",
-        //                     );
-        //                     ui.radio_value(&mut drawing_layer.draw_mode, DrawMode::Draw, "Draw");
-        //                     ui.radio_value(&mut drawing_layer.draw_mode, DrawMode::Erase, "Erase");
-        //                 });
+        egui::Window::new("Areas")
+            .resizable(false)
+            .default_width(280.0)
+            .show(ctx, |ui| {
+                if let Some(area_layer) = self.map.layer_mut::<AreaLayer>("areas") {
+                    ui.label("Mode");
+                    ui.horizontal(|ui| {
+                        ui.radio_value(&mut area_layer.mode, AreaMode::Disabled, "Disabled");
+                        ui.radio_value(&mut area_layer.mode, AreaMode::Modify, "Modify");
+                    });
 
-        //                 ui.add(
-        //                     egui::Slider::new(&mut drawing_layer.stroke.width, 0.1..=10.0)
-        //                         .text("Stroke width"),
-        //                 );
-        //                 ui.horizontal(|ui| {
-        //                     ui.label("Stroke color:");
-        //                     ui.color_edit_button_srgba(&mut drawing_layer.stroke.color);
-        //                 });
-        //             }
-        //         });
+                    // ui.add(
+                    //     egui::Slider::new(&mut drawing_layer.stroke.width, 0.1..=10.0)
+                    //         .text("Stroke width"),
+                    // );
+                    // ui.horizontal(|ui| {
+                    //     ui.label("Stroke color:");
+                    //     ui.color_edit_button_srgba(&mut drawing_layer.stroke.color);
+                    // });
+                }
+            });
     }
 }
