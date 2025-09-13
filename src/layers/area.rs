@@ -39,7 +39,7 @@
 //! }
 //! ```
 
-use crate::layers::Layer;
+use crate::layers::{Layer, dist_sq_to_segment, projection_factor};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Painter, Pos2, Response, Shape, Stroke};
 use log::warn;
@@ -151,8 +151,33 @@ impl AreaLayer {
             }
         }
 
-        if response.clicked() {
-            // TODO: Add/remove nodes
+        if response.double_clicked() {
+            if let Some(pointer_pos) = response.interact_pointer_pos() {
+                if self.find_node_at(pointer_pos, projection).is_none() {
+                    if let Some((area_idx, node_idx)) =
+                        self.find_line_segment_at(pointer_pos, projection)
+                    {
+                        if let Some(area) = self.areas.get_mut(area_idx) {
+                            let p1 = area.points[node_idx];
+                            let p2 = area.points[(node_idx + 1) % area.points.len()];
+
+                            let p1_screen = projection.project(p1);
+                            let p2_screen = projection.project(p2);
+
+                            let t = projection_factor(pointer_pos, p1_screen, p2_screen);
+
+                            // Interpolate in screen space and unproject to get the new geographical position.
+                            let new_pos_screen = p1_screen.lerp(p2_screen, t);
+                            let new_pos_geo = projection.unproject(new_pos_screen);
+
+                            area.points.insert(node_idx + 1, new_pos_geo);
+
+                            // Start dragging the new node immediately.
+                            self.dragged_node = Some((area_idx, node_idx + 1));
+                        }
+                    }
+                }
+            }
         }
 
         response.hovered()
@@ -164,6 +189,29 @@ impl AreaLayer {
                 let node_screen_pos = projection.project(*node);
                 if node_screen_pos.distance(screen_pos) < self.node_radius * 2.0 {
                     return Some((area_idx, node_idx));
+                }
+            }
+        }
+        None
+    }
+
+    fn find_line_segment_at(
+        &self,
+        screen_pos: Pos2,
+        projection: &MapProjection,
+    ) -> Option<(usize, usize)> {
+        let click_tolerance = (self.node_radius * 2.0).powi(2);
+
+        for (area_idx, area) in self.areas.iter().enumerate().rev() {
+            if area.points.len() < 2 {
+                continue;
+            }
+            for i in 0..area.points.len() {
+                let p1 = projection.project(area.points[i]);
+                let p2 = projection.project(area.points[(i + 1) % area.points.len()]);
+
+                if dist_sq_to_segment(screen_pos, p1, p2) < click_tolerance {
+                    return Some((area_idx, i));
                 }
             }
         }
