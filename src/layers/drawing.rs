@@ -29,7 +29,7 @@
 //!     }
 //! }
 //! ```
-use crate::layers::Layer;
+use crate::layers::{Layer, dist_sq_to_segment, projection_factor};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Painter, Pos2, Response, Stroke};
 use serde::{Deserialize, Serialize};
@@ -247,42 +247,6 @@ fn split_polyline_by_erase_circle(
     }
 
     new_polylines
-}
-
-/// Calculates the squared distance from a point to a line segment.
-fn dist_sq_to_segment(p: Pos2, a: Pos2, b: Pos2) -> f32 {
-    let ab = b - a;
-    let ap = p - a;
-    let l2 = ab.length_sq();
-
-    if l2 == 0.0 {
-        // The segment is a point.
-        return ap.length_sq();
-    }
-
-    // Project point p onto the line defined by a and b.
-    // `t` is the normalized distance from a to the projection.
-    let t = (ap.dot(ab) / l2).clamp(0.0, 1.0);
-
-    // The closest point on the line segment.
-    let closest_point = a + t * ab;
-
-    p.distance_sq(closest_point)
-}
-
-/// Calculates the projection factor of a point onto a line segment.
-/// Returns a value `t` from 0.0 to 1.0.
-fn projection_factor(p: Pos2, a: Pos2, b: Pos2) -> f32 {
-    let ab = b - a;
-    let ap = p - a;
-    let l2 = ab.length_sq();
-
-    if l2 == 0.0 {
-        return 0.0;
-    }
-
-    // Project point p onto the line defined by a and b.
-    (ap.dot(ab) / l2).clamp(0.0, 1.0)
 }
 
 #[cfg(test)]
