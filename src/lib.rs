@@ -333,17 +333,6 @@ impl Map {
         }
     }
 
-    /// Draws the map tiles.
-    fn draw_map(&mut self, ui: &mut Ui, rect: &Rect) {
-        let painter = ui.painter_at(*rect);
-        painter.rect_filled(*rect, 0.0, Color32::from_rgb(220, 220, 220)); // Background
-
-        let visible_tiles: Vec<_> = self.visible_tiles(rect).collect();
-        for (tile_id, tile_pos) in visible_tiles {
-            self.draw_tile(ui, &painter, tile_id, tile_pos);
-        }
-    }
-
     /// Draws the attribution text.
     fn draw_attribution(&self, ui: &mut Ui, rect: &Rect) {
         // Check if the widget is scrolled out of view or clipped.
@@ -385,153 +374,6 @@ impl Map {
                 });
         }
     }
-
-    /// Returns an iterator over the visible tiles.
-    fn visible_tiles(&self, rect: &Rect) -> impl Iterator<Item = (TileId, egui::Pos2)> {
-        let center_x = lon_to_x(self.center.lon, self.zoom);
-        let center_y = lat_to_y(self.center.lat, self.zoom);
-
-        let widget_center_x = rect.width() / 2.0;
-        let widget_center_y = rect.height() / 2.0;
-
-        let x_min = (center_x - widget_center_x as f64 / TILE_SIZE as f64).floor() as i32;
-        let y_min = (center_y - widget_center_y as f64 / TILE_SIZE as f64).floor() as i32;
-        let x_max = (center_x + widget_center_x as f64 / TILE_SIZE as f64).ceil() as i32;
-        let y_max = (center_y + widget_center_y as f64 / TILE_SIZE as f64).ceil() as i32;
-
-        let zoom = self.zoom;
-        let rect_min = rect.min;
-        (x_min..=x_max).flat_map(move |x| {
-            (y_min..=y_max).map(move |y| {
-                let tile_id = TileId {
-                    z: zoom,
-                    x: x as u32,
-                    y: y as u32,
-                };
-                let screen_x = widget_center_x + (x as f64 - center_x) as f32 * TILE_SIZE as f32;
-                let screen_y = widget_center_y + (y as f64 - center_y) as f32 * TILE_SIZE as f32;
-                let tile_pos = rect_min + Vec2::new(screen_x, screen_y);
-                (tile_id, tile_pos)
-            })
-        })
-    }
-
-    /// Draws a single map tile.
-    fn draw_tile(
-        &mut self,
-        ui: &mut Ui,
-        painter: &egui::Painter,
-        tile_id: TileId,
-        tile_pos: egui::Pos2,
-    ) {
-        let tile_state = self.tiles.entry(tile_id).or_insert_with(|| {
-            let url = tile_id.to_url(self.config.as_ref());
-            let promise =
-                Promise::spawn_thread("download_tile", move || -> Result<_, Arc<eyre::Report>> {
-                    let result: Result<_, eyre::Report> = (|| {
-                        debug!("Downloading tile from {}", &url);
-                        let response = CLIENT.get(&url).send().map_err(MapError::from)?;
-
-                        if !response.status().is_success() {
-                            return Err(MapError::TileDownloadError(response.status().to_string()));
-                        }
-
-                        let bytes = response.bytes().map_err(MapError::from)?.to_vec();
-                        let image = image::load_from_memory(&bytes)
-                            .map_err(MapError::from)?
-                            .to_rgba8();
-
-                        let size = [image.width() as _, image.height() as _];
-                        let pixels = image.into_raw();
-                        Ok(egui::ColorImage::from_rgba_unmultiplied(size, &pixels))
-                    })()
-                    .with_context(|| format!("Failed to download tile from {}", &url));
-
-                    result.map_err(Arc::new)
-                });
-            Tile::Loading(promise)
-        });
-
-        // If the tile is loading, check if the promise is ready and update the state.
-        // This is done before matching on the state, so that we can immediately draw
-        // the tile if it has just finished loading.
-        if let Tile::Loading(promise) = tile_state {
-            if let Some(result) = promise.ready() {
-                match result {
-                    Ok(color_image) => {
-                        let texture = ui.ctx().load_texture(
-                            format!("tile_{}_{}_{}", tile_id.z, tile_id.x, tile_id.y),
-                            color_image.clone(),
-                            Default::default(),
-                        );
-                        *tile_state = Tile::Loaded(texture);
-                    }
-                    Err(e) => {
-                        error!("{:?}", e);
-                        *tile_state = Tile::Failed(e.clone());
-                    }
-                }
-            }
-        }
-
-        let tile_rect =
-            Rect::from_min_size(tile_pos, Vec2::new(TILE_SIZE as f32, TILE_SIZE as f32));
-
-        match tile_state {
-            Tile::Loading(_) => {
-                // Draw a gray background and a border for the placeholder.
-                painter.rect_filled(tile_rect, 0.0, Color32::from_gray(220));
-                painter.rect_stroke(
-                    tile_rect,
-                    0.0,
-                    egui::Stroke::new(1.0, Color32::GRAY),
-                    egui::StrokeKind::Inside,
-                );
-
-                // Draw a question mark in the center.
-                painter.text(
-                    tile_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    "?",
-                    egui::FontId::proportional(40.0),
-                    Color32::ORANGE,
-                );
-
-                // The tile is still loading, so we need to tell egui to repaint.
-                ui.ctx().request_repaint();
-            }
-            Tile::Loaded(texture) => {
-                painter.image(
-                    texture.id(),
-                    tile_rect,
-                    Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-                    Color32::WHITE,
-                );
-            }
-            Tile::Failed(e) => {
-                // Draw a gray background and a border for the placeholder.
-                painter.rect_filled(tile_rect, 0.0, Color32::from_gray(220));
-                painter.rect_stroke(
-                    tile_rect,
-                    0.0,
-                    egui::Stroke::new(1.0, Color32::GRAY),
-                    egui::StrokeKind::Inside,
-                );
-
-                // Draw a red exclamation mark in the center.
-                painter.text(
-                    tile_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    "!",
-                    egui::FontId::proportional(40.0),
-                    Color32::RED,
-                );
-
-                let response = ui.interact(tile_rect, ui.id().with(tile_id), Sense::hover());
-                response.on_hover_text(format!("{}", e));
-            }
-        }
-    }
 }
 
 /// Converts longitude to the x-coordinate of a tile at a given zoom level.
@@ -555,6 +397,171 @@ fn y_to_lat(y: f64, zoom: u8) -> f64 {
     let n = std::f64::consts::PI - 2.0 * std::f64::consts::PI * y / (2.0_f64.powi(zoom as i32));
     n.sinh().atan().to_degrees()
 }
+
+/// Draws the map tiles.
+pub(crate) fn draw_map(
+    tiles: &mut HashMap<TileId, Tile>,
+    config: &dyn MapConfig,
+    painter: &egui::Painter,
+    projection: &MapProjection,
+) {
+    let visible_tiles: Vec<_> = visible_tiles(projection).collect();
+    for (tile_id, tile_pos) in visible_tiles {
+        load_tile(tiles, config, &painter.ctx(), tile_id);
+        draw_tile(tiles, painter, &tile_id, tile_pos, Color32::WHITE);
+    }
+}
+
+/// Returns an iterator over the visible tiles.
+pub(crate) fn visible_tiles(projection: &MapProjection) -> impl Iterator<Item = (TileId, egui::Pos2)> {
+    let center_x = lon_to_x(projection.center_lon, projection.zoom);
+    let center_y = lat_to_y(projection.center_lat, projection.zoom);
+
+    let widget_center_x = projection.widget_rect.width() / 2.0;
+    let widget_center_y = projection.widget_rect.height() / 2.0;
+
+    let x_min = (center_x - widget_center_x as f64 / TILE_SIZE as f64).floor() as i32;
+    let y_min = (center_y - widget_center_y as f64 / TILE_SIZE as f64).floor() as i32;
+    let x_max = (center_x + widget_center_x as f64 / TILE_SIZE as f64).ceil() as i32;
+    let y_max = (center_y + widget_center_y as f64 / TILE_SIZE as f64).ceil() as i32;
+
+    let zoom = projection.zoom;
+    let rect_min = projection.widget_rect.min;
+    (x_min..=x_max).flat_map(move |x| {
+        (y_min..=y_max).map(move |y| {
+            let tile_id = TileId {
+                z: zoom,
+                x: x as u32,
+                y: y as u32,
+            };
+            let screen_x = widget_center_x + (x as f64 - center_x) as f32 * TILE_SIZE as f32;
+            let screen_y = widget_center_y + (y as f64 - center_y) as f32 * TILE_SIZE as f32;
+            let tile_pos = rect_min + Vec2::new(screen_x, screen_y);
+            (tile_id, tile_pos)
+        })
+    })
+}
+
+/// map loads tile as a texture
+pub(crate) fn load_tile(
+    tiles: &mut HashMap<TileId, Tile>,
+    config: &dyn MapConfig,
+    ctx: &egui::Context,
+    tile_id: TileId,
+) {
+    let tile_state = tiles.entry(tile_id).or_insert_with(|| {
+        let url = tile_id.to_url(config);
+        let promise =
+            Promise::spawn_thread("download_tile", move || -> Result<_, Arc<eyre::Report>> {
+                let result: Result<_, eyre::Report> = (|| {
+                    debug!("Downloading tile from {}", &url);
+                    let response = CLIENT.get(&url).send().map_err(MapError::from)?;
+
+                    if !response.status().is_success() {
+                        return Err(MapError::TileDownloadError(response.status().to_string()));
+                    }
+
+                    let bytes = response.bytes().map_err(MapError::from)?.to_vec();
+                    let image = image::load_from_memory(&bytes)
+                        .map_err(MapError::from)?
+                        .to_rgba8();
+
+                    let size = [image.width() as _, image.height() as _];
+                    let pixels = image.into_raw();
+                    Ok(egui::ColorImage::from_rgba_unmultiplied(size, &pixels))
+                })()
+                .with_context(|| format!("Failed to download tile from {}", &url));
+
+                result.map_err(Arc::new)
+            });
+        Tile::Loading(promise)
+    });
+
+    // If the tile is loading, check if the promise is ready and update the state.
+    // This is done before matching on the state, so that we can immediately draw
+    // the tile if it has just finished loading.
+    if let Tile::Loading(promise) = tile_state {
+        if let Some(result) = promise.ready() {
+            match result {
+                Ok(color_image) => {
+                    let texture = ctx.load_texture(
+                        format!("tile_{}_{}_{}", tile_id.z, tile_id.x, tile_id.y),
+                        color_image.clone(),
+                        Default::default(),
+                    );
+                    *tile_state = Tile::Loaded(texture);
+                }
+                Err(e) => {
+                    error!("{:?}", e);
+                    *tile_state = Tile::Failed(e.clone());
+                }
+            }
+        }
+    }
+}
+
+/// Draws a single map tile.
+pub(crate) fn draw_tile(
+    tiles: &HashMap<TileId, Tile>,
+    painter: &egui::Painter,
+    tile_id: &TileId,
+    tile_pos: egui::Pos2, tint: Color32
+) {
+    let tile_rect = Rect::from_min_size(tile_pos, Vec2::new(TILE_SIZE as f32, TILE_SIZE as f32));
+    let tile_state = tiles.get(tile_id).unwrap();
+    match tile_state {
+        Tile::Loading(_) => {
+            // Draw a gray background and a border for the placeholder.
+            painter.rect_filled(tile_rect, 0.0, Color32::from_gray(220));
+            painter.rect_stroke(
+                tile_rect,
+                0.0,
+                egui::Stroke::new(1.0, Color32::GRAY),
+                egui::StrokeKind::Inside,
+            );
+
+            // Draw a question mark in the center.
+            painter.text(
+                tile_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "?",
+                egui::FontId::proportional(40.0),
+                Color32::ORANGE,
+            );
+
+            // The tile is still loading, so we need to tell egui to repaint.
+            painter.ctx().request_repaint();
+        }
+        Tile::Loaded(texture) => {
+            painter.image(
+                texture.id(),
+                tile_rect,
+                Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),tint,
+            );
+        }
+        Tile::Failed(_) => {
+            // Draw a gray background and a border for the placeholder.
+            painter.rect_filled(tile_rect, 0.0, Color32::from_gray(220));
+            painter.rect_stroke(
+                tile_rect,
+                0.0,
+                egui::Stroke::new(1.0, Color32::GRAY),
+                egui::StrokeKind::Inside,
+            );
+
+            // Draw a red exclamation mark in the center.
+            painter.text(
+                tile_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "!",
+                egui::FontId::proportional(40.0),
+                Color32::RED,
+            );
+        }
+    }
+}
+
+
 
 impl Widget for &mut Map {
     fn ui(self, ui: &mut Ui) -> Response {
@@ -603,11 +610,20 @@ impl Widget for &mut Map {
             .hover_pos()
             .map(|pos| input_projection.unproject(pos));
 
-        self.draw_map(ui, &rect);
-
         // Create a new projection for drawing, with the updated map state.
         let draw_projection = MapProjection::new(self.zoom, self.center, rect);
+
         let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, 0.0, Color32::from_rgb(220, 220, 220)); // Background
+
+        draw_map(
+            &mut self.tiles,
+            self.config.as_ref(),
+             &painter,
+            &draw_projection,
+           
+        );
+
         for layer in self.layers.values() {
             layer.draw(&painter, &draw_projection);
         }
