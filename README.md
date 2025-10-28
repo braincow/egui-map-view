@@ -122,6 +122,17 @@ let my_map = Map::new(MyCustomProvider { /* ... */ });
 
 Contributions are welcome! Feel free to open an issue or submit a pull request if you have any ideas for improvements.
 
+## Contributors
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
 ## License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.
