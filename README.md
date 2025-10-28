@@ -1,4 +1,7 @@
 # egui-map-view
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [![Crates.io](https://img.shields.io/crates/v/egui-map-view.svg)](https://crates.io/crates/egui-map-view)
 [![Docs.rs](https://docs.rs/egui-map-view/badge.svg)](https://docs.rs/egui-map-view)
@@ -125,3 +128,25 @@ Contributions are welcome! Feel free to open an issue or submit a pull request i
 ## License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.
+
+## Contributors ✨
+
+Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Niki123456123456"><img src="https://avatars.githubusercontent.com/u/85129772?v=4?s=100" width="100px;" alt="Niklas Nordkamp"/><br /><sub><b>Niklas Nordkamp</b></sub></a><br /><a href="https://github.com/braincow/egui-map-view/commits?author=Niki123456123456" title="Documentation">📖</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
