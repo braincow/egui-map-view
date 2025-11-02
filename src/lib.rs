@@ -413,7 +413,9 @@ pub(crate) fn draw_map(
 }
 
 /// Returns an iterator over the visible tiles.
-pub(crate) fn visible_tiles(projection: &MapProjection) -> impl Iterator<Item = (TileId, egui::Pos2)> {
+pub(crate) fn visible_tiles(
+    projection: &MapProjection,
+) -> impl Iterator<Item = (TileId, egui::Pos2)> {
     let center_x = lon_to_x(projection.center_lon, projection.zoom);
     let center_y = lat_to_y(projection.center_lat, projection.zoom);
 
@@ -505,7 +507,8 @@ pub(crate) fn draw_tile(
     tiles: &HashMap<TileId, Tile>,
     painter: &egui::Painter,
     tile_id: &TileId,
-    tile_pos: egui::Pos2, tint: Color32
+    tile_pos: egui::Pos2,
+    tint: Color32,
 ) {
     let tile_rect = Rect::from_min_size(tile_pos, Vec2::new(TILE_SIZE as f32, TILE_SIZE as f32));
     let tile_state = tiles.get(tile_id).unwrap();
@@ -536,10 +539,11 @@ pub(crate) fn draw_tile(
             painter.image(
                 texture.id(),
                 tile_rect,
-                Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),tint,
+                Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                tint,
             );
         }
-        Tile::Failed(_) => {
+        Tile::Failed(e) => {
             // Draw a gray background and a border for the placeholder.
             painter.rect_filled(tile_rect, 0.0, Color32::from_gray(220));
             painter.rect_stroke(
@@ -557,11 +561,12 @@ pub(crate) fn draw_tile(
                 egui::FontId::proportional(40.0),
                 Color32::RED,
             );
+
+            // Log the error message
+            error!("Failed to load tile: {:?}", e);
         }
     }
 }
-
-
 
 impl Widget for &mut Map {
     fn ui(self, ui: &mut Ui) -> Response {
@@ -619,9 +624,8 @@ impl Widget for &mut Map {
         draw_map(
             &mut self.tiles,
             self.config.as_ref(),
-             &painter,
+            &painter,
             &draw_projection,
-           
         );
 
         for layer in self.layers.values() {
