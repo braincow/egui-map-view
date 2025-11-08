@@ -127,6 +127,14 @@ Contributions are welcome! Feel free to open an issue or submit a pull request i
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
 <!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="http://bcow.me/"><img src="https://avatars.githubusercontent.com/u/9844925?v=4?s=100" width="100px;" alt="Antti Peltonen"/><br /><sub><b>Antti Peltonen</b></sub></a><br /><a href="https://github.com/braincow/egui-map-view/commits?author=braincow" title="Code">💻</a> <a href="https://github.com/braincow/egui-map-view/commits?author=braincow" title="Documentation">📖</a> <a href="#ideas-braincow" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Niki123456123456"><img src="https://avatars.githubusercontent.com/u/85129772?v=4?s=100" width="100px;" alt="Niklas Nordkamp"/><br /><sub><b>Niklas Nordkamp</b></sub></a><br /><a href="https://github.com/braincow/egui-map-view/commits?author=Niki123456123456" title="Code">💻</a> <a href="https://github.com/braincow/egui-map-view/commits?author=Niki123456123456" title="Documentation">📖</a></td>
+    </tr>
+  </tbody>
+</table>
 
 <!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->

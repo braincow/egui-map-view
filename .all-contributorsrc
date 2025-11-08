@@ -1,4 +1,29 @@
 {
   "projectName": "egui-map-view",
-  "projectOwner": "braincow"
+  "projectOwner": "braincow",
+  "repoType": "github",
+  "commitConvention": "angular",
+  "contributors": [
+    {
+      "login": "braincow",
+      "name": "Antti Peltonen",
+      "avatar_url": "https://avatars.githubusercontent.com/u/9844925?v=4",
+      "profile": "http://bcow.me/",
+      "contributions": [
+        "code",
+        "doc",
+        "ideas"
+      ]
+    },
+    {
+      "login": "Niki123456123456",
+      "name": "Niklas Nordkamp",
+      "avatar_url": "https://avatars.githubusercontent.com/u/85129772?v=4",
+      "profile": "https://github.com/Niki123456123456",
+      "contributions": [
+        "code",
+        "doc"
+      ]
+    }
+  ]
 }
