@@ -193,3 +193,46 @@ mod tests {
         );
     }
 }
+
+/// A dynamic map configuration that allows defining a custom tile URL function at runtime.
+///
+/// # Example
+///
+/// ```
+/// use egui_map_view::config::DynMapConfig;
+/// let config = DynMapConfig::new(|tile| format!("https://my-tile-server/{}/{}/{}.png", tile.z, tile.x, tile.y));
+/// ```
+pub struct DynMapConfig {
+    tile_url: Box<dyn Fn(&TileId) -> String>,
+}
+
+impl DynMapConfig {
+    /// Creates a new `DynMapConfig` with a custom tile URL function.
+    pub fn new(tile_url: impl Fn(&TileId) -> String + 'static) -> Self {
+        Self {
+            tile_url: Box::new(tile_url),
+        }
+    }
+}
+
+impl MapConfig for DynMapConfig {
+    fn tile_url(&self, tile: &TileId) -> String {
+        (self.tile_url)(tile)
+    }
+
+    fn attribution(&self) -> Option<&String> {
+        None
+    }
+
+    fn attribution_url(&self) -> Option<&String> {
+        None
+    }
+
+    fn default_center(&self) -> (f64, f64) {
+        (24.93545, 60.16952)
+    }
+
+    fn default_zoom(&self) -> u8 {
+        2
+    }
+}
