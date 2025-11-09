@@ -20,7 +20,9 @@
 //!             GeoPos { lon: 10.0, lat: 55.0 },
 //!             GeoPos { lon: 11.0, lat: 55.0 },
 //!             GeoPos { lon: 10.5, lat: 55.5 },
-//!         ]
+//!         ],
+//!         stroke: Stroke::new(2.0, Color32::from_rgb(255, 0, 0)),
+//!         fill: Color32::from_rgba_unmultiplied(255, 0, 0, 50),
 //!     });
 //!     area_layer.mode = AreaMode::Modify;
 //!
