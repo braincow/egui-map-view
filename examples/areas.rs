@@ -52,6 +52,7 @@ impl Default for MyApp {
             shape: Circle {
                 center: (circle_center_lon, circle_center_lat).into(),
                 radius,
+                points: None, // calculate reasonable amount of points on the circle polygon based on its radius
             },
             stroke: Stroke::new(2.0, Color32::from_rgb(0, 102, 255)),
             fill: Color32::from_rgba_unmultiplied(0, 102, 255, 50),

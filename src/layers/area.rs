@@ -70,6 +70,8 @@ pub enum AreaShape {
         center: GeoPos,
         /// The radius of the circle in meters.
         radius: f64,
+        /// How many points should be used to draw the circle. If None the the point count is determined automatically which might look edged depending on zoom and projection.
+        points: Option<i64>,
     },
 }
 
@@ -211,7 +213,12 @@ impl AreaLayer {
                         }
                         DraggedObject::CircleRadius { area_index } => {
                             if let Some(area) = self.areas.get_mut(*area_index) {
-                                if let AreaShape::Circle { center, radius } = &mut area.shape {
+                                if let AreaShape::Circle {
+                                    center,
+                                    radius,
+                                    points: _,
+                                } = &mut area.shape
+                                {
                                     // Convert the new screen-space radius back to meters.
                                     let center_screen = projection.project(*center);
                                     let new_radius_pixels = pointer_pos.distance(center_screen);
@@ -270,7 +277,11 @@ impl AreaLayer {
                         }
                     }
                 }
-                AreaShape::Circle { center, radius } => {
+                AreaShape::Circle {
+                    center,
+                    radius,
+                    points: _,
+                } => {
                     let center_screen = projection.project(*center);
 
                     // Convert radius from meters to screen pixels to correctly detect handle clicks.
@@ -400,10 +411,11 @@ impl Area {
     fn get_points(&self, projection: &MapProjection) -> Vec<GeoPos> {
         match &self.shape {
             AreaShape::Polygon(points) => points.clone(),
-            AreaShape::Circle { center, radius } => {
-                let num_points = 64;
-                let mut circle_points = Vec::with_capacity(num_points);
-
+            AreaShape::Circle {
+                center,
+                radius,
+                points,
+            } => {
                 // Convert radius from meters to screen pixels.
                 let center_geo = *center;
                 let point_on_circle_geo = GeoPos {
@@ -414,6 +426,15 @@ impl Area {
                 let center_screen = projection.project(center_geo);
                 let point_on_circle_screen = projection.project(point_on_circle_geo);
                 let radius_pixels = center_screen.distance(point_on_circle_screen);
+
+                let num_points = if let Some(points) = points {
+                    *points
+                } else {
+                    // Automatically determine the number of points based on the circle's radius
+                    // to ensure it looks smooth.
+                    (radius_pixels as f64 * 2.0 * std::f64::consts::PI / 10.0).ceil() as i64
+                };
+                let mut circle_points = Vec::with_capacity(num_points as usize);
 
                 for i in 0..num_points {
                     let angle = (i as f64 / num_points as f64) * 2.0 * std::f64::consts::PI;
@@ -492,7 +513,11 @@ impl Layer for AreaLayer {
                             painter.circle_filled(*point, self.node_radius, self.node_fill);
                         }
                     }
-                    AreaShape::Circle { center, radius } => {
+                    AreaShape::Circle {
+                        center,
+                        radius,
+                        points: _,
+                    } => {
                         let center_screen = projection.project(*center);
 
                         // Convert radius from meters to screen pixels to correctly position the handle.
