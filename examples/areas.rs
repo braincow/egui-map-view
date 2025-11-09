@@ -2,6 +2,7 @@
 #![allow(rustdoc::missing_crate_level_docs)] // it's an example
 
 use eframe::egui;
+use egui::{Color32, Stroke};
 use egui_map_view::{
     Map,
     config::OpenStreetMapConfig,
@@ -15,7 +16,7 @@ fn main() -> eframe::Result {
     };
 
     eframe::run_native(
-        "My place polygons on a map test",
+        "Place polygons on a map test",
         options,
         Box::new(|_cc| Ok(Box::<MyApp>::default())),
     )
@@ -31,7 +32,6 @@ impl Default for MyApp {
         let mut area_layer = AreaLayer::default();
         let (center_lon, center_lat) = map.center.into();
 
-        // Add triangle
         area_layer.add_area(Area {
             points: vec![
                 // Create GeoPos points relative to the maps default center
@@ -39,6 +39,8 @@ impl Default for MyApp {
                 (center_lon + 1.5, center_lat - 0.5).into(),
                 (center_lon, center_lat + 1.0).into(),
             ],
+            stroke: Stroke::new(2.0, Color32::from_rgb(255, 0, 0)),
+            fill: Color32::from_rgba_unmultiplied(255, 0, 0, 50),
         });
 
         // Add a circle
@@ -56,6 +58,8 @@ impl Default for MyApp {
         }
         area_layer.add_area(Area {
             points: circle_points,
+            stroke: Stroke::new(2.0, Color32::from_rgb(0, 102, 255)),
+            fill: Color32::from_rgba_unmultiplied(0, 102, 255, 50),
         });
 
         map.add_layer("areas", area_layer);

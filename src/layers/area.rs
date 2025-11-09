@@ -61,6 +61,12 @@ pub enum AreaMode {
 pub struct Area {
     /// The nodes of the polygon. Must be 3 or more.
     pub points: Vec<GeoPos>,
+    #[serde(skip)]
+    /// The stroke style for drawing the polygon outlines.
+    pub stroke: Stroke,
+    #[serde(skip)]
+    /// The fill color of the polygon.
+    pub fill: Color32,
 }
 
 /// Layer implementation that allows the user to draw polygons on the map.
@@ -68,14 +74,6 @@ pub struct Area {
 #[serde(default)]
 pub struct AreaLayer {
     areas: Vec<Area>,
-
-    #[serde(skip)]
-    /// The stroke style for drawing the polygon outlines.
-    pub stroke: Stroke,
-
-    #[serde(skip)]
-    /// The fill color of the polygon.
-    pub fill: Color32,
 
     #[serde(skip)]
     /// The radius of the nodes.
@@ -104,8 +102,6 @@ impl AreaLayer {
     pub fn new() -> Self {
         Self {
             areas: Vec::new(),
-            stroke: Stroke::new(2.0, Color32::from_rgb(255, 0, 0)),
-            fill: Color32::from_rgba_unmultiplied(255, 0, 0, 50),
             node_radius: 5.0,
             node_fill: Color32::from_rgb(0, 128, 0),
             mode: AreaMode::default(),
@@ -312,7 +308,7 @@ impl Layer for AreaLayer {
                     points: screen_points.clone(),
                     closed: true,
                     fill: Color32::TRANSPARENT,
-                    stroke: self.stroke.into(),
+                    stroke: area.stroke.into(),
                 });
                 painter.add(path_shape);
 
@@ -329,7 +325,7 @@ impl Layer for AreaLayer {
                     .map(|p| egui::epaint::Vertex {
                         pos: *p,
                         uv: Default::default(),
-                        color: self.fill,
+                        color: area.fill,
                     })
                     .collect();
                 mesh.indices = indices.into_iter().map(|i| i as u32).collect();
