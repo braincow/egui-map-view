@@ -542,11 +542,120 @@ impl Layer for AreaLayer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::projection::MapProjection;
+    use egui::{Rect, pos2, vec2};
+
+    // Helper for creating a dummy projection for tests
+    fn dummy_projection() -> MapProjection {
+        MapProjection::new(
+            10,                // zoom
+            (0.0, 0.0).into(), // center
+            Rect::from_min_size(Pos2::ZERO, vec2(1000.0, 1000.0)),
+        )
+    }
 
     #[test]
     fn area_layer_new() {
         let layer = AreaLayer::default();
         assert_eq!(layer.mode, AreaMode::Disabled);
         assert!(layer.areas.is_empty());
+        assert_eq!(layer.node_radius, 5.0);
+    }
+
+    #[test]
+    fn area_layer_add_area() {
+        let mut layer = AreaLayer::default();
+        assert_eq!(layer.areas.len(), 0);
+
+        layer.add_area(Area {
+            shape: AreaShape::Polygon(vec![
+                (0.0, 0.0).into(),
+                (1.0, 0.0).into(),
+                (0.0, 1.0).into(),
+            ]),
+            stroke: Default::default(),
+            fill: Default::default(),
+        });
+
+        assert_eq!(layer.areas.len(), 1);
+    }
+
+    #[test]
+    fn circle_get_points_with_fixed_number() {
+        let projection = dummy_projection();
+        let area = Area {
+            shape: AreaShape::Circle {
+                center: (0.0, 0.0).into(),
+                radius: 1000.0,
+                points: Some(16),
+            },
+            stroke: Default::default(),
+            fill: Default::default(),
+        };
+
+        let points = area.get_points(&projection);
+        assert_eq!(points.len(), 16);
+    }
+
+    #[test]
+    fn find_object_at_empty() {
+        let layer = AreaLayer::default();
+        let projection = dummy_projection();
+        let position = pos2(100.0, 100.0);
+
+        assert!(layer.find_object_at(position, &projection).is_none());
+    }
+
+    #[test]
+    fn find_object_at_polygon_node() {
+        let projection = dummy_projection();
+        let mut layer = AreaLayer::default();
+        let geo_pos = projection.unproject(pos2(100.0, 100.0));
+
+        layer.add_area(Area {
+            shape: AreaShape::Polygon(vec![geo_pos]),
+            stroke: Default::default(),
+            fill: Default::default(),
+        });
+
+        // Position is exactly on the node
+        let found = layer.find_object_at(pos2(100.0, 100.0), &projection);
+        assert!(matches!(
+            found,
+            Some(DraggedObject::PolygonNode {
+                area_index: 0,
+                node_index: 0
+            })
+        ));
+
+        // Position is slightly off but within tolerance
+        let found_nearby = layer.find_object_at(pos2(101.0, 101.0), &projection);
+        assert!(matches!(
+            found_nearby,
+            Some(DraggedObject::PolygonNode {
+                area_index: 0,
+                node_index: 0
+            })
+        ));
+
+        // Position is too far
+        let not_found = layer.find_object_at(pos2(200.0, 200.0), &projection);
+        assert!(not_found.is_none());
+    }
+
+    #[test]
+    fn area_layer_serde() {
+        let mut layer = AreaLayer::default();
+        layer.add_area(Area {
+            shape: AreaShape::Polygon(vec![(0.0, 0.0).into()]),
+            stroke: Stroke::new(1.0, Color32::RED), // Should be skipped
+            fill: Color32::BLUE,                    // Should be skipped
+        });
+
+        let json = serde_json::to_string(&layer).unwrap();
+        let deserialized: AreaLayer = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.areas.len(), 1);
+        assert_eq!(deserialized.mode, AreaMode::Disabled); // Restored to default
     }
 }
