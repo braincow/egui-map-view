@@ -326,13 +326,12 @@ impl TextLayer {
 
     fn get_text_rect(&self, text: &Text, projection: &MapProjection, ctx: &egui::Context) -> Rect {
         let font_size = self.get_font_size(text, projection);
-        let galley = ctx.fonts(|f| {
-            f.layout_no_wrap(
-                text.text.clone(),
-                FontId::proportional(font_size),
-                text.color,
-            )
-        });
+        let galley = ctx.debug_painter().layout_job(egui::text::LayoutJob::simple(
+            text.text.clone(),
+            FontId::proportional(font_size),
+            text.color,
+            f32::INFINITY,
+        ));
         let screen_pos = projection.project(text.pos);
         Align2::CENTER_CENTER.anchor_rect(Rect::from_min_size(screen_pos, galley.size()))
     }

@@ -7,10 +7,14 @@ use crate::{TILE_SIZE, lat_to_y, lon_to_x, x_to_lon, y_to_lat};
 
 /// A helper for converting between geographical and screen coordinates.
 pub struct MapProjection {
-    zoom: u8,
-    center_lon: f64,
-    center_lat: f64,
-    widget_rect: Rect,
+    /// The zoom level of the map.
+    pub zoom: u8,
+    /// The longitude of the center point of the map.
+    pub center_lon: f64,
+    /// The latitude of the center point of the map.
+    pub center_lat: f64,
+    /// The screen rectangle where the map is displayed.
+    pub widget_rect: Rect,
 }
 
 impl MapProjection {

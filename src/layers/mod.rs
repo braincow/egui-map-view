@@ -17,6 +17,10 @@ pub mod text;
 #[cfg(feature = "area-layer")]
 pub mod area;
 
+// Tile layer
+#[cfg(feature = "tile-layer")]
+pub mod tile;
+
 /// A trait for map layers.
 pub trait Layer: Any {
     /// Handles user input for the layer. Returns `true` if the input was handled and should not be
