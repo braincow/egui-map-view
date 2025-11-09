@@ -5,6 +5,8 @@ use std::any::Any;
 
 use crate::projection::MapProjection;
 
+pub mod geojson;
+
 /// Drawing layer
 #[cfg(feature = "drawing-layer")]
 pub mod drawing;

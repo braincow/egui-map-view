@@ -191,6 +191,34 @@ impl TextLayer {
         self.editing = None;
     }
 
+    /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    pub fn to_geojson_str(&self) -> Result<String, serde_json::Error> {
+        let features: Vec<geojson::Feature> = self
+            .texts
+            .clone()
+            .into_iter()
+            .map(geojson::Feature::from)
+            .collect();
+        let feature_collection = geojson::FeatureCollection {
+            bbox: None,
+            features,
+            foreign_members: None,
+        };
+        serde_json::to_string(&feature_collection)
+    }
+
+    /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    pub fn from_geojson_str(&mut self, s: &str) -> Result<(), serde_json::Error> {
+        let feature_collection: geojson::FeatureCollection = serde_json::from_str(s)?;
+        let new_texts: Vec<Text> = feature_collection
+            .features
+            .into_iter()
+            .map(Text::from)
+            .collect();
+        self.texts.extend(new_texts);
+        Ok(())
+    }
+
     fn handle_modify_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
         if self.editing.is_some() {
             // While editing in a dialog, we don't want to interact with the map.
@@ -386,5 +414,24 @@ mod tests {
         );
         assert!(deserialized.editing.is_none());
         assert!(deserialized.dragged_text_index.is_none());
+    }
+
+    #[test]
+    fn text_layer_geojson() {
+        let mut layer = TextLayer::default();
+        layer.texts.push(Text {
+            text: "Hello".to_string(),
+            pos: (10.0, 20.0).into(),
+            size: TextSize::Static(14.0),
+            color: Color32::from_rgb(0, 0, 255),
+            background: Color32::from_rgba_unmultiplied(255, 0, 0, 128),
+        });
+
+        let geojson_str = layer.to_geojson_str().unwrap();
+        let mut new_layer = TextLayer::default();
+        new_layer.from_geojson_str(&geojson_str).unwrap();
+
+        assert_eq!(new_layer.texts.len(), 1);
+        assert_eq!(layer.texts[0], new_layer.texts[0]);
     }
 }
