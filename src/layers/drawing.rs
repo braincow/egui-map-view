@@ -75,10 +75,21 @@ impl DrawingLayer {
             .into_iter()
             .map(geojson::Feature::from)
             .collect();
+
+        let mut foreign_members = serde_json::Map::new();
+        foreign_members.insert(
+            "stroke_width".to_string(),
+            serde_json::Value::from(self.stroke.width),
+        );
+        foreign_members.insert(
+            "stroke_color".to_string(),
+            serde_json::Value::String(self.stroke.color.to_hex()),
+        );
+
         let feature_collection = geojson::FeatureCollection {
             bbox: None,
             features,
-            foreign_members: None,
+            foreign_members: Some(foreign_members),
         };
         serde_json::to_string(&feature_collection)
     }
@@ -92,6 +103,22 @@ impl DrawingLayer {
             .map(Polyline::from)
             .collect();
         self.polylines.extend(new_polylines);
+
+        if let Some(foreign_members) = feature_collection.foreign_members {
+            if let Some(value) = foreign_members.get("stroke_width") {
+                if let Some(width) = value.as_f64() {
+                    self.stroke.width = width as f32;
+                }
+            }
+            if let Some(value) = foreign_members.get("stroke_color") {
+                if let Some(s) = value.as_str() {
+                    if let Ok(color) = Color32::from_hex(s) {
+                        self.stroke.color = color;
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -343,6 +370,7 @@ mod tests {
             (30.0, 40.0).into(),
             (50.0, 60.0).into(),
         ]));
+        layer.stroke = Stroke::new(5.0, Color32::BLUE);
 
         let geojson_str = layer.to_geojson_str().unwrap();
 
@@ -351,5 +379,6 @@ mod tests {
 
         assert_eq!(new_layer.polylines.len(), 1);
         assert_eq!(layer.polylines[0], new_layer.polylines[0]);
+        assert_eq!(layer.stroke, new_layer.stroke);
     }
 }
