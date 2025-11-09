@@ -4,7 +4,8 @@
 //!
 //! ```no_run
 //! use eframe::egui;
-//! use egui_map_view::{Map, config::OpenStreetMapConfig, layers::{area::{Area, AreaLayer, AreaMode}, Layer}, projection::GeoPos};
+//! use egui_map_view::{Map, config::OpenStreetMapConfig, layers::{area::{Area, AreaLayer, AreaMode, AreaShape::Polygon}, Layer}, projection::GeoPos};
+//! use egui::{Color32, Stroke};
 //!
 //! struct MyApp {
 //!     map: Map,
@@ -16,11 +17,11 @@
 //!
 //!     let mut area_layer = AreaLayer::default();
 //!     area_layer.add_area(Area {
-//!         points: vec![
+//!         shape: Polygon(vec![
 //!             GeoPos { lon: 10.0, lat: 55.0 },
 //!             GeoPos { lon: 11.0, lat: 55.0 },
 //!             GeoPos { lon: 10.5, lat: 55.5 },
-//!         ],
+//!         ]),
 //!         stroke: Stroke::new(2.0, Color32::from_rgb(255, 0, 0)),
 //!         fill: Color32::from_rgba_unmultiplied(255, 0, 0, 50),
 //!     });
@@ -304,7 +305,7 @@ impl AreaLayer {
 
     fn find_node_at(&self, screen_pos: Pos2, projection: &MapProjection) -> Option<(usize, usize)> {
         // This function is now a subset of find_object_at, kept for double-click to add node.
-        // It probably should be refactored.
+        // TODO: this probably should be refactored.
         self.find_line_segment_at(screen_pos, projection)
     }
     fn find_line_segment_at(
@@ -343,7 +344,7 @@ impl AreaLayer {
         let area = if let Some(area) = self.areas.get(area_idx) {
             area
         } else {
-            return false; // Should not happen
+            return false; // TODO: Should not happen
         };
 
         let points = match &area.shape {
@@ -453,7 +454,6 @@ impl Layer for AreaLayer {
             // Draw polygon outline
             if screen_points.len() >= 3 {
                 // Use a generic path for the stroke.
-
                 let path_shape = Shape::Path(egui::epaint::PathShape {
                     points: screen_points.clone(),
                     closed: true,

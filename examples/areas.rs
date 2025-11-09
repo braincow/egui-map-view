@@ -6,7 +6,7 @@ use egui::{Color32, Stroke};
 use egui_map_view::{
     Map,
     config::OpenStreetMapConfig,
-    layers::area::{Area, AreaLayer, AreaMode},
+    layers::area::{Area, AreaLayer, AreaMode, AreaShape::*},
 };
 
 fn main() -> eframe::Result {
@@ -33,7 +33,7 @@ impl Default for MyApp {
         let (center_lon, center_lat) = map.center.into();
 
         area_layer.add_area(Area {
-            shape: egui_map_view::layers::area::AreaShape::Polygon(vec![
+            shape: Polygon(vec![
                 // Create GeoPos points relative to the maps default center
                 (center_lon - 1.5, center_lat - 0.5).into(),
                 (center_lon + 1.5, center_lat - 0.5).into(),
@@ -49,7 +49,7 @@ impl Default for MyApp {
         let radius = 150000.0; // In meters
 
         area_layer.add_area(Area {
-            shape: egui_map_view::layers::area::AreaShape::Circle {
+            shape: Circle {
                 center: (circle_center_lon, circle_center_lat).into(),
                 radius,
             },
