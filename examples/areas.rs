@@ -33,12 +33,12 @@ impl Default for MyApp {
         let (center_lon, center_lat) = map.center.into();
 
         area_layer.add_area(Area {
-            points: vec![
+            shape: egui_map_view::layers::area::AreaShape::Polygon(vec![
                 // Create GeoPos points relative to the maps default center
                 (center_lon - 1.5, center_lat - 0.5).into(),
                 (center_lon + 1.5, center_lat - 0.5).into(),
                 (center_lon, center_lat + 1.0).into(),
-            ],
+            ]),
             stroke: Stroke::new(2.0, Color32::from_rgb(255, 0, 0)),
             fill: Color32::from_rgba_unmultiplied(255, 0, 0, 50),
         });
@@ -46,18 +46,13 @@ impl Default for MyApp {
         // Add a circle
         let circle_center_lon = center_lon - 3.5;
         let circle_center_lat = center_lat;
-        let radius = 1.0;
-        let num_points = 64;
-        let mut circle_points = Vec::with_capacity(num_points);
-        for i in 0..num_points {
-            let angle = (i as f64 / num_points as f64) * 2.0 * std::f64::consts::PI;
-            let lon =
-                circle_center_lon + radius * angle.cos() / circle_center_lat.to_radians().cos();
-            let lat = circle_center_lat + radius * angle.sin();
-            circle_points.push((lon, lat).into());
-        }
+        let radius = 150000.0; // In meters
+
         area_layer.add_area(Area {
-            points: circle_points,
+            shape: egui_map_view::layers::area::AreaShape::Circle {
+                center: (circle_center_lon, circle_center_lat).into(),
+                radius,
+            },
             stroke: Stroke::new(2.0, Color32::from_rgb(0, 102, 255)),
             fill: Color32::from_rgba_unmultiplied(0, 102, 255, 50),
         });
