@@ -32,6 +32,8 @@ impl Default for MyApp {
         let mut area_layer = AreaLayer::default();
         // Define a GeoJSON string with a FeatureCollection.
         // This one contains a polygon and a circle.
+        let crate_name = env!("CARGO_PKG_NAME");
+        let crate_version = env!("CARGO_PKG_VERSION");
         let geojson_str = format!(
             r##"
         {{
@@ -44,6 +46,8 @@ impl Default for MyApp {
                         "coordinates": [[ [{}, {}], [{}, {}], [{}, {}], [{}, {}] ]]
                     }},
                     "properties": {{
+                        "x-egui-map-view-crate-name": "{}",
+                        "x-egui-map-view-crate-version": "{}",
                         "stroke_color": "#ff0000ff",
                         "stroke_width": 2.0,
                         "fill_color": "#ff000080"
@@ -56,6 +60,8 @@ impl Default for MyApp {
                         "coordinates": [{}, {}]
                     }},
                     "properties": {{
+                        "x-egui-map-view-crate-name": "{}",
+                        "x-egui-map-view-crate-version": "{}",
                         "radius": 150000.0,
                         "stroke_color": "#0066ffff",
                         "stroke_width": 2.0,
@@ -73,9 +79,15 @@ impl Default for MyApp {
             center_lat + 1.0,
             center_lon - 1.5,
             center_lat - 0.5,
+            // Polygon version properties
+            crate_name,
+            crate_version,
             // Circle coordinates
             center_lon - 3.5,
-            center_lat
+            center_lat,
+            // Circle version properties
+            crate_name,
+            crate_version
         );
 
         // Deserialize the GeoJSON into the AreaLayer.

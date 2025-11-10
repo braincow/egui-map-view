@@ -19,10 +19,46 @@ fn vec_to_geo_pos(pos: &[f64]) -> GeoPos {
     }
 }
 
+/// Adds crate name and version to the feature properties.
+fn add_version_to_properties(properties: &mut Map<String, JsonValue>) {
+    properties.insert(
+        "x-egui-map-view-crate-name".to_string(),
+        JsonValue::String(env!("CARGO_PKG_NAME").to_string()),
+    );
+    properties.insert(
+        "x-egui-map-view-crate-version".to_string(),
+        JsonValue::String(env!("CARGO_PKG_VERSION").to_string()),
+    );
+}
+
+/// Checks the crate version from the feature properties and logs a warning on mismatch.
+fn check_version_from_properties(properties: &Map<String, JsonValue>) {
+    if let (Some(name), Some(version)) = (
+        properties
+            .get("x-egui-map-view-crate-name")
+            .and_then(|v| v.as_str()),
+        properties
+            .get("x-egui-map-view-crate-version")
+            .and_then(|v| v.as_str()),
+    ) {
+        if name == env!("CARGO_PKG_NAME") && version != env!("CARGO_PKG_VERSION") {
+            log::warn!(
+                "GeoJSON feature was created with a different version of {}. File version: {}, current version: {}. This might lead to unexpected behavior.",
+                name,
+                version,
+                env!("CARGO_PKG_VERSION")
+            );
+        }
+    } else {
+        log::warn!("No egui-map-view version information found in feature properties.");
+    }
+}
+
 impl From<Area> for Feature {
     fn from(area: Area) -> Self {
         let mut feature = Feature::default();
         let mut properties = Map::new();
+        add_version_to_properties(&mut properties);
 
         properties.insert(
             "stroke_color".to_string(),
@@ -119,6 +155,7 @@ impl From<Feature> for Area {
         let mut fill = Color32::TRANSPARENT;
 
         if let Some(properties) = &feature.properties {
+            check_version_from_properties(properties);
             if let Some(value) = properties.get("stroke_width") {
                 if let Some(width) = value.as_f64() {
                     stroke.width = width as f32;
@@ -151,6 +188,9 @@ impl From<Feature> for Area {
 impl From<Polyline> for Feature {
     fn from(polyline: Polyline) -> Self {
         let mut feature = Feature::default();
+        let mut properties = Map::new();
+        add_version_to_properties(&mut properties);
+        feature.properties = Some(properties);
         let line_string: Vec<Vec<f64>> = polyline.0.iter().map(geo_pos_to_vec).collect();
         feature.geometry = Some(Geometry::new(Value::LineString(line_string)));
         feature
@@ -164,6 +204,9 @@ impl From<Feature> for Polyline {
                 return Polyline(line_string.iter().map(|pos| vec_to_geo_pos(pos)).collect());
             }
         }
+        if let Some(properties) = &feature.properties {
+            check_version_from_properties(properties);
+        }
         Polyline(vec![])
     }
 }
@@ -172,6 +215,7 @@ impl From<Text> for Feature {
     fn from(text: Text) -> Self {
         let mut feature = Feature::default();
         let mut properties = Map::new();
+        add_version_to_properties(&mut properties);
         let point = Geometry::new(Value::Point(geo_pos_to_vec(&text.pos)));
         feature.geometry = Some(point);
         properties.insert("text".to_string(), JsonValue::String(text.text));
@@ -212,6 +256,7 @@ impl From<Feature> for Text {
             }
         }
         if let Some(properties) = feature.properties {
+            check_version_from_properties(&properties);
             if let Some(value) = properties.get("text") {
                 if let Some(s) = value.as_str() {
                     text.text = s.to_string();
