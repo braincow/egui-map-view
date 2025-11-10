@@ -5,6 +5,8 @@ use std::any::Any;
 
 use crate::projection::MapProjection;
 
+/// GeoJSON serialization and deserialization for layers.
+#[cfg(feature = "geojson")]
 pub mod geojson;
 
 /// Drawing layer

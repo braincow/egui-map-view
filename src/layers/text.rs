@@ -192,6 +192,7 @@ impl TextLayer {
     }
 
     /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    #[cfg(feature = "geojson")]
     pub fn to_geojson_str(&self) -> Result<String, serde_json::Error> {
         let features: Vec<geojson::Feature> = self
             .texts
@@ -208,6 +209,7 @@ impl TextLayer {
     }
 
     /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    #[cfg(feature = "geojson")]
     pub fn from_geojson_str(&mut self, s: &str) -> Result<(), serde_json::Error> {
         let feature_collection: geojson::FeatureCollection = serde_json::from_str(s)?;
         let new_texts: Vec<Text> = feature_collection
@@ -354,12 +356,14 @@ impl TextLayer {
 
     fn get_text_rect(&self, text: &Text, projection: &MapProjection, ctx: &egui::Context) -> Rect {
         let font_size = self.get_font_size(text, projection);
-        let galley = ctx.debug_painter().layout_job(egui::text::LayoutJob::simple(
-            text.text.clone(),
-            FontId::proportional(font_size),
-            text.color,
-            f32::INFINITY,
-        ));
+        let galley = ctx
+            .debug_painter()
+            .layout_job(egui::text::LayoutJob::simple(
+                text.text.clone(),
+                FontId::proportional(font_size),
+                text.color,
+                f32::INFINITY,
+            ));
         let screen_pos = projection.project(text.pos);
         Align2::CENTER_CENTER.anchor_rect(Rect::from_min_size(screen_pos, galley.size()))
     }
@@ -417,6 +421,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "geojson")]
     fn text_layer_geojson() {
         let mut layer = TextLayer::default();
         layer.texts.push(Text {

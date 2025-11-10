@@ -68,6 +68,7 @@ pub struct DrawingLayer {
 
 impl DrawingLayer {
     /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    #[cfg(feature = "geojson")]
     pub fn to_geojson_str(&self) -> Result<String, serde_json::Error> {
         let features: Vec<geojson::Feature> = self
             .polylines
@@ -95,6 +96,7 @@ impl DrawingLayer {
     }
 
     /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    #[cfg(feature = "geojson")]
     pub fn from_geojson_str(&mut self, s: &str) -> Result<(), serde_json::Error> {
         let feature_collection: geojson::FeatureCollection = serde_json::from_str(s)?;
         let new_polylines: Vec<Polyline> = feature_collection
@@ -202,9 +204,14 @@ impl DrawingLayer {
         self.polylines = old_polylines
             .into_iter()
             .flat_map(|polyline| {
-                split_polyline_by_erase_circle(&polyline.0, pointer_pos, erase_radius_sq, projection)
-                    .into_iter()
-                    .map(Polyline)
+                split_polyline_by_erase_circle(
+                    &polyline.0,
+                    pointer_pos,
+                    erase_radius_sq,
+                    projection,
+                )
+                .into_iter()
+                .map(Polyline)
             })
             .collect();
     }
@@ -363,6 +370,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "geojson")]
     fn drawing_layer_geojson() {
         let mut layer = DrawingLayer::default();
         layer.polylines.push(Polyline(vec![

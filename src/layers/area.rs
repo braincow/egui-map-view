@@ -149,6 +149,7 @@ impl AreaLayer {
     }
 
     /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    #[cfg(feature = "geojson")]
     pub fn to_geojson_str(&self) -> Result<String, serde_json::Error> {
         let features: Vec<geojson::Feature> = self
             .areas
@@ -165,6 +166,7 @@ impl AreaLayer {
     }
 
     /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    #[cfg(feature = "geojson")]
     pub fn from_geojson_str(&mut self, s: &str) -> Result<(), serde_json::Error> {
         let feature_collection: geojson::FeatureCollection = serde_json::from_str(s)?;
         let new_areas: Vec<Area> = feature_collection
@@ -687,6 +689,7 @@ mod tests {
         assert_eq!(deserialized.mode, AreaMode::Disabled); // Restored to default
     }
 
+    #[cfg(feature = "geojson")]
     mod geojson_tests {
         use super::*;
 
