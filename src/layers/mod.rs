@@ -25,6 +25,65 @@ pub mod area;
 #[cfg(feature = "tile-layer")]
 pub mod tile;
 
+/// A module for serializing and deserializing `Color32` to and from hex strings.
+pub(crate) mod serde_color32 {
+    use egui::Color32;
+    use serde::{self, Deserialize, Deserializer, Serializer};
+
+    /// Serializes a `Color32` to a hex string.
+    pub fn serialize<S>(color: &Color32, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&color.to_hex())
+    }
+
+    /// Deserializes a `Color32` from a hex string.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Color32, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = <String as Deserialize>::deserialize(deserializer)?;
+        Color32::from_hex(&s).map_err(|err| serde::de::Error::custom(format!("{:?}", err)))
+    }
+}
+
+/// A module for serializing and deserializing `egui::Stroke`.
+pub(crate) mod serde_stroke {
+    use crate::layers::serde_color32;
+    use egui::{Color32, Stroke};
+    use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Serialize, Deserialize)]
+    struct StrokeHelper {
+        width: f32,
+        #[serde(with = "serde_color32")]
+        color: Color32,
+    }
+
+    pub fn serialize<S>(stroke: &Stroke, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let helper = StrokeHelper {
+            width: stroke.width,
+            color: stroke.color,
+        };
+        helper.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Stroke, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let helper = StrokeHelper::deserialize(deserializer)?;
+        Ok(Stroke {
+            width: helper.width,
+            color: helper.color,
+        })
+    }
+}
+
 /// A trait for map layers.
 pub trait Layer: Any {
     /// Handles user input for the layer. Returns `true` if the input was handled and should not be

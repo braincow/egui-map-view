@@ -29,7 +29,7 @@
 //!     }
 //! }
 //! ```
-use crate::layers::{Layer, dist_sq_to_segment, projection_factor};
+use crate::layers::{Layer, dist_sq_to_segment, projection_factor, serde_stroke};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Painter, Pos2, Response, Stroke};
 use serde::{Deserialize, Serialize};
@@ -57,12 +57,12 @@ pub enum DrawMode {
 pub struct DrawingLayer {
     polylines: Vec<Polyline>,
 
-    #[serde(skip)]
     /// The stroke style for drawing aka line width and color.
+    #[serde(with = "serde_stroke")]
     pub stroke: Stroke,
 
-    #[serde(skip)]
     /// The current drawing mode.
+    #[serde(skip)]
     pub draw_mode: DrawMode,
 }
 

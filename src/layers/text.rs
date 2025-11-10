@@ -1,54 +1,10 @@
 //! A layer for placing text on the map.
 
-use crate::layers::Layer;
+use crate::layers::{Layer, serde_color32};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Response};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
-
-/// A helper module for serializing `egui::Color32`.
-mod ser_color {
-    use egui::Color32;
-    use serde::{self, Deserialize, Deserializer, Serializer};
-
-    pub fn serialize<S>(color: &Color32, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = color.to_hex();
-        serializer.serialize_str(&s)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Color32, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        if !s.starts_with('#') {
-            return Err(serde::de::Error::custom("hex color must start with '#'"));
-        }
-        let s = &s[1..];
-        let (r, g, b, a) = match s.len() {
-            6 => {
-                let r = u8::from_str_radix(&s[0..2], 16).map_err(serde::de::Error::custom)?;
-                let g = u8::from_str_radix(&s[2..4], 16).map_err(serde::de::Error::custom)?;
-                let b = u8::from_str_radix(&s[4..6], 16).map_err(serde::de::Error::custom)?;
-                (r, g, b, 255)
-            }
-            8 => {
-                let r = u8::from_str_radix(&s[0..2], 16).map_err(serde::de::Error::custom)?;
-                let g = u8::from_str_radix(&s[2..4], 16).map_err(serde::de::Error::custom)?;
-                let b = u8::from_str_radix(&s[4..6], 16).map_err(serde::de::Error::custom)?;
-                let a = u8::from_str_radix(&s[6..8], 16).map_err(serde::de::Error::custom)?;
-                (r, g, b, a)
-            }
-            _ => {
-                return Err(serde::de::Error::custom("invalid hex color length"));
-            }
-        };
-        Ok(Color32::from_rgba_unmultiplied(r, g, b, a))
-    }
-}
 
 /// The size of the text.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -80,11 +36,11 @@ pub struct Text {
     pub size: TextSize,
 
     /// The color of the text.
-    #[serde(with = "ser_color")]
+    #[serde(with = "serde_color32")]
     pub color: Color32,
 
     /// The color of the background.
-    #[serde(with = "ser_color")]
+    #[serde(with = "serde_color32")]
     pub background: Color32,
 }
 

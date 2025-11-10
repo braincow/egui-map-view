@@ -42,7 +42,9 @@
 //! }
 //! ```
 
-use crate::layers::{Layer, dist_sq_to_segment, projection_factor, segments_intersect};
+use crate::layers::{
+    Layer, dist_sq_to_segment, projection_factor, segments_intersect, serde_color32, serde_stroke,
+};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Mesh, Painter, Pos2, Response, Shape, Stroke};
 use log::warn;
@@ -80,11 +82,13 @@ pub enum AreaShape {
 pub struct Area {
     /// The shape of the area.
     pub shape: AreaShape,
-    #[serde(skip)]
+
     /// The stroke style for drawing the polygon outlines.
+    #[serde(with = "serde_stroke")]
     pub stroke: Stroke,
-    #[serde(skip)]
+
     /// The fill color of the polygon.
+    #[serde(with = "serde_color32")]
     pub fill: Color32,
 }
 
