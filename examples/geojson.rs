@@ -2,7 +2,12 @@
 #![allow(rustdoc::missing_crate_level_docs)] // it's an example
 
 use eframe::egui;
-use egui_map_view::{Map, config::OpenStreetMapConfig, layers::area::AreaLayer};
+use egui_map_view::{
+    Map,
+    config::OpenStreetMapConfig,
+    layers::{area::AreaLayer, text::TextLayer},
+    projection::GeoPos,
+};
 
 fn main() -> eframe::Result {
     // Log to stdout (if you run with `RUST_LOG=debug`).
@@ -26,76 +31,27 @@ struct MyApp {
 
 impl Default for MyApp {
     fn default() -> Self {
-        let mut map = Map::new(OpenStreetMapConfig::default());
-        let (center_lon, center_lat) = map.center.into();
+        // Read the GeoJSON data from the file.
+        let geojson_str =
+            std::fs::read_to_string("examples/data.geojson").expect("Failed to read data.geojson");
 
-        let mut area_layer = AreaLayer::default();
-        // Define a GeoJSON string with a FeatureCollection.
-        // This one contains a polygon and a circle.
-        let crate_name = env!("CARGO_PKG_NAME");
-        let crate_version = env!("CARGO_PKG_VERSION");
-        let geojson_str = format!(
-            r##"
-        {{
-            "type": "FeatureCollection",
-            "features": [
-                {{
-                    "type": "Feature",
-                    "geometry": {{
-                        "type": "Polygon",
-                        "coordinates": [[ [{}, {}], [{}, {}], [{}, {}], [{}, {}] ]]
-                    }},
-                    "properties": {{
-                        "x-egui-map-view-crate-name": "{}",
-                        "x-egui-map-view-crate-version": "{}",
-                        "stroke_color": "#ff0000ff",
-                        "stroke_width": 2.0,
-                        "fill_color": "#ff000080"
-                    }}
-                }},
-                {{
-                    "type": "Feature",
-                    "geometry": {{
-                        "type": "Point",
-                        "coordinates": [{}, {}]
-                    }},
-                    "properties": {{
-                        "x-egui-map-view-crate-name": "{}",
-                        "x-egui-map-view-crate-version": "{}",
-                        "radius": 150000.0,
-                        "stroke_color": "#0066ffff",
-                        "stroke_width": 2.0,
-                        "fill_color": "#0066ff80"
-                    }}
-                }}
-            ]
-        }}"##,
-            // Polygon coordinates
-            center_lon - 1.5,
-            center_lat - 0.5,
-            center_lon + 1.5,
-            center_lat - 0.5,
-            center_lon,
-            center_lat + 1.0,
-            center_lon - 1.5,
-            center_lat - 0.5,
-            // Polygon version properties
-            crate_name,
-            crate_version,
-            // Circle coordinates
-            center_lon - 3.5,
-            center_lat,
-            // Circle version properties
-            crate_name,
-            crate_version
-        );
+        let mut map = Map::new(OpenStreetMapConfig::default());
+        map.center = GeoPos::from((10.0, 55.0));
 
         // Deserialize the GeoJSON into the AreaLayer.
+        let mut area_layer = AreaLayer::default();
         if let Err(e) = area_layer.from_geojson_str(&geojson_str) {
             log::error!("Failed to deserialize GeoJSON: {}", e);
         }
-
         map.add_layer("areas", area_layer);
+
+        // Deserialize the GeoJSON into the TextLayer.
+        let mut text_layer = TextLayer::default();
+        if let Err(e) = text_layer.from_geojson_str(&geojson_str) {
+            log::error!("Failed to deserialize GeoJSON: {}", e);
+        }
+        map.add_layer("text", text_layer);
+
         Self { map }
     }
 }
