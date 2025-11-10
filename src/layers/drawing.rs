@@ -369,24 +369,28 @@ mod tests {
         assert_eq!(deserialized.draw_mode, DrawMode::Disabled);
     }
 
-    #[test]
     #[cfg(feature = "geojson")]
-    fn drawing_layer_geojson() {
-        let mut layer = DrawingLayer::default();
-        layer.polylines.push(Polyline(vec![
-            (10.0, 20.0).into(),
-            (30.0, 40.0).into(),
-            (50.0, 60.0).into(),
-        ]));
-        layer.stroke = Stroke::new(5.0, Color32::BLUE);
+    mod geojson_tests {
+        use super::*;
 
-        let geojson_str = layer.to_geojson_str().unwrap();
+        #[test]
+        fn drawing_layer_geojson() {
+            let mut layer = DrawingLayer::default();
+            layer.polylines.push(Polyline(vec![
+                (10.0, 20.0).into(),
+                (30.0, 40.0).into(),
+                (50.0, 60.0).into(),
+            ]));
+            layer.stroke = Stroke::new(5.0, Color32::BLUE);
 
-        let mut new_layer = DrawingLayer::default();
-        new_layer.from_geojson_str(&geojson_str).unwrap();
+            let geojson_str = layer.to_geojson_str().unwrap();
 
-        assert_eq!(new_layer.polylines.len(), 1);
-        assert_eq!(layer.polylines[0], new_layer.polylines[0]);
-        assert_eq!(layer.stroke, new_layer.stroke);
+            let mut new_layer = DrawingLayer::default();
+            new_layer.from_geojson_str(&geojson_str).unwrap();
+
+            assert_eq!(new_layer.polylines.len(), 1);
+            assert_eq!(layer.polylines[0], new_layer.polylines[0]);
+            assert_eq!(layer.stroke, new_layer.stroke);
+        }
     }
 }

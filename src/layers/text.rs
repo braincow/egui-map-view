@@ -376,23 +376,27 @@ mod tests {
         assert!(deserialized.dragged_text_index.is_none());
     }
 
-    #[test]
     #[cfg(feature = "geojson")]
-    fn text_layer_geojson() {
-        let mut layer = TextLayer::default();
-        layer.texts.push(Text {
-            text: "Hello".to_string(),
-            pos: (10.0, 20.0).into(),
-            size: TextSize::Static(14.0),
-            color: Color32::from_rgb(0, 0, 255),
-            background: Color32::from_rgba_unmultiplied(255, 0, 0, 128),
-        });
+    mod geojson_tests {
+        use super::*;
 
-        let geojson_str = layer.to_geojson_str().unwrap();
-        let mut new_layer = TextLayer::default();
-        new_layer.from_geojson_str(&geojson_str).unwrap();
+        #[test]
+        fn text_layer_geojson() {
+            let mut layer = TextLayer::default();
+            layer.texts.push(Text {
+                text: "Hello".to_string(),
+                pos: (10.0, 20.0).into(),
+                size: TextSize::Static(14.0),
+                color: Color32::from_rgb(0, 0, 255),
+                background: Color32::from_rgba_unmultiplied(255, 0, 0, 128),
+            });
 
-        assert_eq!(new_layer.texts.len(), 1);
-        assert_eq!(layer.texts[0], new_layer.texts[0]);
+            let geojson_str = layer.to_geojson_str().unwrap();
+            let mut new_layer = TextLayer::default();
+            new_layer.from_geojson_str(&geojson_str).unwrap();
+
+            assert_eq!(new_layer.texts.len(), 1);
+            assert_eq!(layer.texts[0], new_layer.texts[0]);
+        }
     }
 }
