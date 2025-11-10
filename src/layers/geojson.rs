@@ -39,14 +39,15 @@ impl From<Area> for Feature {
 
         match area.shape {
             AreaShape::Polygon(points) => {
-                let polygon_points: Vec<Vec<Vec<f64>>> = vec![points
-                    .iter()
-                    // GeoJSON polygons must be closed, so the first and last points must be the same.
-                    .chain(points.first())
-                    .map(geo_pos_to_vec)
-                    .collect()];
+                let polygon_points: Vec<Vec<Vec<f64>>> = vec![
+                    points
+                        .iter()
+                        // GeoJSON polygons must be closed, so the first and last points must be the same.
+                        .chain(points.first())
+                        .map(geo_pos_to_vec)
+                        .collect(),
+                ];
                 feature.geometry = Some(Geometry::new(Value::Polygon(polygon_points)));
-                properties.insert("type".to_string(), JsonValue::String("Polygon".to_string()));
             }
             AreaShape::Circle {
                 center,
@@ -55,7 +56,6 @@ impl From<Area> for Feature {
             } => {
                 let point = Geometry::new(Value::Point(geo_pos_to_vec(&center)));
                 feature.geometry = Some(point);
-                properties.insert("type".to_string(), JsonValue::String("Circle".to_string()));
                 properties.insert("radius".to_string(), JsonValue::from(radius));
                 if let Some(p) = points {
                     properties.insert("points".to_string(), JsonValue::from(p));
@@ -71,14 +71,8 @@ impl From<Area> for Feature {
 impl From<Feature> for Area {
     fn from(feature: Feature) -> Self {
         let shape = if let Some(geometry) = feature.geometry {
-            let properties = feature.properties.as_ref().unwrap();
-            let shape_type = properties
-                .get("type")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default();
-
-            match (shape_type, geometry.value) {
-                ("Polygon", Value::Polygon(mut points)) => {
+            match geometry.value {
+                Value::Polygon(mut points) => {
                     let mut polygon_points: Vec<GeoPos> = points
                         .pop()
                         .unwrap_or_default()
@@ -93,7 +87,8 @@ impl From<Feature> for Area {
 
                     AreaShape::Polygon(polygon_points)
                 }
-                ("Circle", Value::Point(point)) => {
+                Value::Point(point) => {
+                    let properties = feature.properties.as_ref().unwrap();
                     let center = vec_to_geo_pos(&point);
                     let radius = properties
                         .get("radius")
@@ -101,10 +96,14 @@ impl From<Feature> for Area {
                         .unwrap_or_default();
                     let points = properties.get("points").and_then(|v| v.as_i64());
 
-                    AreaShape::Circle {
-                        center,
-                        radius,
-                        points,
+                    if radius > 0.0 {
+                        AreaShape::Circle {
+                            center,
+                            radius,
+                            points,
+                        }
+                    } else {
+                        AreaShape::Polygon(vec![]) // Not a circle, return empty polygon.
                     }
                 }
                 _ => {
@@ -162,9 +161,7 @@ impl From<Feature> for Polyline {
     fn from(feature: Feature) -> Self {
         if let Some(geometry) = feature.geometry {
             if let Value::LineString(line_string) = geometry.value {
-                return Polyline(
-                    line_string.iter().map(|pos| vec_to_geo_pos(pos)).collect(),
-                );
+                return Polyline(line_string.iter().map(|pos| vec_to_geo_pos(pos)).collect());
             }
         }
         Polyline(vec![])
@@ -186,7 +183,10 @@ impl From<Text> for Feature {
 
         match text.size {
             TextSize::Static(size) => {
-                properties.insert("size_type".to_string(), JsonValue::String("Static".to_string()));
+                properties.insert(
+                    "size_type".to_string(),
+                    JsonValue::String("Static".to_string()),
+                );
                 properties.insert("size".to_string(), JsonValue::from(size));
             }
             TextSize::Relative(size) => {
