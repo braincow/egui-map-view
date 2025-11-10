@@ -682,8 +682,8 @@ mod tests {
         let mut layer = AreaLayer::default();
         layer.add_area(Area {
             shape: AreaShape::Polygon(vec![(0.0, 0.0).into()]),
-            stroke: Stroke::new(1.0, Color32::RED), // Should be skipped
-            fill: Color32::BLUE,                    // Should be skipped
+            stroke: Stroke::new(1.0, Color32::RED),
+            fill: Color32::BLUE,
         });
 
         let json = serde_json::to_string(&layer).unwrap();

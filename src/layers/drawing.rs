@@ -353,20 +353,20 @@ mod tests {
         let json = serde_json::to_string(&layer).unwrap();
 
         // The serialized string should only contain polylines.
-        assert!(json.contains(r#""polylines":[[{"lon":1.0,"lat":2.0},{"lon":3.0,"lat":4.0}]]"#));
+        assert!(json.contains(r##""polylines":[[{"lon":1.0,"lat":2.0},{"lon":3.0,"lat":4.0}]],"stroke":{"width":5.0,"color":"#0000ffff"}"##));
         assert!(!json.contains("draw_mode"));
-        assert!(!json.contains("stroke"));
 
         let deserialized: DrawingLayer = serde_json::from_str(&json).unwrap();
 
         // Check that polylines are restored correctly.
         assert_eq!(deserialized.polylines, layer.polylines);
 
-        // Check that skipped fields have their values from the `default()` implementation,
-        // not from the original `layer` object.
+        // Check that the stroke information is correct
+        assert_eq!(deserialized.stroke.width, 5.0);
+        assert_eq!(deserialized.stroke.color, Color32::BLUE);
+
+        // Default is drawmode disabled and its not serializable
         assert_eq!(deserialized.draw_mode, DrawMode::Disabled);
-        assert_eq!(deserialized.stroke.width, 2.0);
-        assert_eq!(deserialized.stroke.color, Color32::RED);
     }
 
     #[test]
