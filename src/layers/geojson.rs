@@ -8,17 +8,6 @@ use egui::{Color32, Stroke};
 use geojson::{Feature, Geometry, Value};
 use serde_json::{Map, Value as JsonValue};
 
-fn geo_pos_to_vec(gp: &GeoPos) -> Vec<f64> {
-    vec![gp.lon, gp.lat]
-}
-
-fn vec_to_geo_pos(pos: &[f64]) -> GeoPos {
-    GeoPos {
-        lon: pos[0],
-        lat: pos[1],
-    }
-}
-
 /// Adds crate name and version to the feature properties.
 fn add_version_to_properties(properties: &mut Map<String, JsonValue>) {
     properties.insert(
@@ -80,7 +69,7 @@ impl From<Area> for Feature {
                         .iter()
                         // GeoJSON polygons must be closed, so the first and last points must be the same.
                         .chain(points.first())
-                        .map(geo_pos_to_vec)
+                        .map(|gp| (*gp).into())
                         .collect(),
                 ];
                 feature.geometry = Some(Geometry::new(Value::Polygon(polygon_points)));
@@ -90,7 +79,7 @@ impl From<Area> for Feature {
                 radius,
                 points,
             } => {
-                let point = Geometry::new(Value::Point(geo_pos_to_vec(&center)));
+                let point = Geometry::new(Value::Point(center.into()));
                 feature.geometry = Some(point);
                 properties.insert("radius".to_string(), JsonValue::from(radius));
                 if let Some(p) = points {
@@ -113,7 +102,7 @@ impl From<Feature> for Area {
                         .pop()
                         .unwrap_or_default()
                         .into_iter()
-                        .map(|pos| vec_to_geo_pos(&pos))
+                        .map(|pos| pos.into())
                         .collect();
 
                     // Remove the closing point, as AreaShape::Polygon doesn't expect it.
@@ -125,7 +114,7 @@ impl From<Feature> for Area {
                 }
                 Value::Point(point) => {
                     let properties = feature.properties.as_ref().unwrap();
-                    let center = vec_to_geo_pos(&point);
+                    let center: GeoPos = point.into();
                     let radius = properties
                         .get("radius")
                         .and_then(|v| v.as_f64())
@@ -191,7 +180,7 @@ impl From<Polyline> for Feature {
         let mut properties = Map::new();
         add_version_to_properties(&mut properties);
         feature.properties = Some(properties);
-        let line_string: Vec<Vec<f64>> = polyline.0.iter().map(geo_pos_to_vec).collect();
+        let line_string: Vec<Vec<f64>> = polyline.0.iter().map(|gp| (*gp).into()).collect();
         feature.geometry = Some(Geometry::new(Value::LineString(line_string)));
         feature
     }
@@ -201,7 +190,7 @@ impl From<Feature> for Polyline {
     fn from(feature: Feature) -> Self {
         if let Some(geometry) = feature.geometry {
             if let Value::LineString(line_string) = geometry.value {
-                return Polyline(line_string.iter().map(|pos| vec_to_geo_pos(pos)).collect());
+                return Polyline(line_string.iter().map(|pos| pos.clone().into()).collect());
             }
         }
         if let Some(properties) = &feature.properties {
@@ -216,7 +205,7 @@ impl From<Text> for Feature {
         let mut feature = Feature::default();
         let mut properties = Map::new();
         add_version_to_properties(&mut properties);
-        let point = Geometry::new(Value::Point(geo_pos_to_vec(&text.pos)));
+        let point = Geometry::new(Value::Point(text.pos.into()));
         feature.geometry = Some(point);
         properties.insert("text".to_string(), JsonValue::String(text.text));
         properties.insert("color".to_string(), JsonValue::String(text.color.to_hex()));
@@ -252,7 +241,7 @@ impl From<Feature> for Text {
         let mut text = Text::default();
         if let Some(geometry) = feature.geometry {
             if let Value::Point(point) = geometry.value {
-                text.pos = vec_to_geo_pos(&point);
+                text.pos = point.into();
             }
         }
         if let Some(properties) = feature.properties {
