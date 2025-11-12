@@ -1,0 +1,56 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            8.5,
+                            54.5
+                        ],
+                        [
+                            11.5,
+                            54.5
+                        ],
+                        [
+                            10.0,
+                            56.0
+                        ],
+                        [
+                            8.5,
+                            54.5
+                        ]
+                    ]
+                ]
+            },
+            "properties": {
+                "x-egui-map-view-crate-name": "egui-map-view",
+                "x-egui-map-view-crate-version": "0.1.0",
+                "stroke_color": "#ff0000ff",
+                "stroke_width": 2.0,
+                "fill_color": "#ff000080"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    6.5,
+                    55.0
+                ]
+            },
+            "properties": {
+                "x-egui-map-view-crate-name": "egui-map-view",
+                "x-egui-map-view-crate-version": "0.1.0",
+                "radius": 150000.0,
+                "stroke_color": "#0066ffff",
+                "stroke_width": 2.0,
+                "fill_color": "#0066ff80"
+            }
+        }
+    ]
+}

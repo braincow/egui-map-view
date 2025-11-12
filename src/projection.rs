@@ -84,6 +84,30 @@ impl From<GeoPos> for (f64, f64) {
     }
 }
 
+impl From<&[f64; 2]> for GeoPos {
+    fn from([lon, lat]: &[f64; 2]) -> Self {
+        Self {
+            lon: *lon,
+            lat: *lat,
+        }
+    }
+}
+
+impl From<GeoPos> for Vec<f64> {
+    fn from(pos: GeoPos) -> Self {
+        vec![pos.lon, pos.lat]
+    }
+}
+
+impl From<Vec<f64>> for GeoPos {
+    fn from(pos: Vec<f64>) -> Self {
+        Self {
+            lon: pos[0],
+            lat: pos[1],
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -29,11 +29,15 @@
 //!     }
 //! }
 //! ```
-use crate::layers::{Layer, dist_sq_to_segment, projection_factor};
+use crate::layers::{Layer, dist_sq_to_segment, projection_factor, serde_stroke};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Painter, Pos2, Response, Stroke};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
+
+/// A polyline on the map.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Polyline(pub Vec<GeoPos>);
 
 /// The mode of the `DrawingLayer`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,18 +55,75 @@ pub enum DrawMode {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DrawingLayer {
-    polylines: Vec<Vec<GeoPos>>,
+    polylines: Vec<Polyline>,
 
-    #[serde(skip)]
     /// The stroke style for drawing aka line width and color.
+    #[serde(with = "serde_stroke")]
     pub stroke: Stroke,
 
-    #[serde(skip)]
     /// The current drawing mode.
+    #[serde(skip)]
     pub draw_mode: DrawMode,
 }
 
 impl DrawingLayer {
+    /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    #[cfg(feature = "geojson")]
+    pub fn to_geojson_str(&self) -> Result<String, serde_json::Error> {
+        let features: Vec<geojson::Feature> = self
+            .polylines
+            .clone()
+            .into_iter()
+            .map(geojson::Feature::from)
+            .collect();
+
+        let mut foreign_members = serde_json::Map::new();
+        foreign_members.insert(
+            "stroke_width".to_string(),
+            serde_json::Value::from(self.stroke.width),
+        );
+        foreign_members.insert(
+            "stroke_color".to_string(),
+            serde_json::Value::String(self.stroke.color.to_hex()),
+        );
+
+        let feature_collection = geojson::FeatureCollection {
+            bbox: None,
+            features,
+            foreign_members: Some(foreign_members),
+        };
+        serde_json::to_string(&feature_collection)
+    }
+
+    /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    #[cfg(feature = "geojson")]
+    pub fn from_geojson_str(&mut self, s: &str) -> Result<(), serde_json::Error> {
+        let feature_collection: geojson::FeatureCollection = serde_json::from_str(s)?;
+        let new_polylines: Vec<Polyline> = feature_collection
+            .features
+            .into_iter()
+            .map(Polyline::from)
+            .collect();
+        self.polylines.extend(new_polylines);
+
+        if let Some(foreign_members) = feature_collection.foreign_members {
+            if let Some(value) = foreign_members.get("stroke_width") {
+                if let Some(width) = value.as_f64() {
+                    self.stroke.width = width as f32;
+                }
+            }
+            if let Some(value) = foreign_members.get("stroke_color") {
+                if let Some(s) = value.as_str() {
+                    if let Ok(color) = Color32::from_hex(s) {
+                        self.stroke.color = color;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Creates a new `DrawingLayer`.
     pub fn new(stroke: Stroke) -> Self {
         Self {
@@ -95,24 +156,24 @@ impl DrawingLayer {
                 if let Some(last_line) = self.polylines.last_mut()
                     && response.ctx.input(|i| i.modifiers.shift)
                 {
-                    last_line.push(geo_pos);
+                    last_line.0.push(geo_pos);
                 } else {
                     // No polylines exist yet, so create a new one.
                     let geo_pos2 = projection.unproject(pointer_pos + egui::vec2(1.0, 0.0));
-                    self.polylines.push(vec![geo_pos, geo_pos2]);
+                    self.polylines.push(Polyline(vec![geo_pos, geo_pos2]));
                 }
             }
         }
 
         if response.drag_started() {
-            self.polylines.push(Vec::new());
+            self.polylines.push(Polyline(Vec::new()));
         }
 
         if response.dragged() {
             if let Some(pointer_pos) = response.interact_pointer_pos() {
                 if let Some(last_line) = self.polylines.last_mut() {
                     let geo_pos = projection.unproject(pointer_pos);
-                    last_line.push(geo_pos);
+                    last_line.0.push(geo_pos);
                 }
             }
         }
@@ -143,7 +204,14 @@ impl DrawingLayer {
         self.polylines = old_polylines
             .into_iter()
             .flat_map(|polyline| {
-                split_polyline_by_erase_circle(&polyline, pointer_pos, erase_radius_sq, projection)
+                split_polyline_by_erase_circle(
+                    &polyline.0,
+                    pointer_pos,
+                    erase_radius_sq,
+                    projection,
+                )
+                .into_iter()
+                .map(Polyline)
             })
             .collect();
     }
@@ -168,9 +236,9 @@ impl Layer for DrawingLayer {
 
     fn draw(&self, painter: &Painter, projection: &MapProjection) {
         for polyline in &self.polylines {
-            if polyline.len() > 1 {
+            if polyline.0.len() > 1 {
                 let screen_points: Vec<egui::Pos2> =
-                    polyline.iter().map(|p| projection.project(*p)).collect();
+                    polyline.0.iter().map(|p| projection.project(*p)).collect();
                 painter.add(egui::Shape::line(screen_points, self.stroke));
             }
         }
@@ -276,28 +344,53 @@ mod tests {
     fn drawing_layer_serde() {
         let mut layer = DrawingLayer::default();
         layer.draw_mode = DrawMode::Draw; // This should not be serialized.
-        layer.polylines.push(vec![
+        layer.polylines.push(Polyline(vec![
             GeoPos { lon: 1.0, lat: 2.0 },
             GeoPos { lon: 3.0, lat: 4.0 },
-        ]);
+        ]));
         layer.stroke = Stroke::new(5.0, Color32::BLUE); // This should not be serialized.
 
         let json = serde_json::to_string(&layer).unwrap();
 
         // The serialized string should only contain polylines.
-        assert!(json.contains(r#""polylines":[[{"lon":1.0,"lat":2.0},{"lon":3.0,"lat":4.0}]]"#));
+        assert!(json.contains(r##""polylines":[[{"lon":1.0,"lat":2.0},{"lon":3.0,"lat":4.0}]],"stroke":{"width":5.0,"color":"#0000ffff"}"##));
         assert!(!json.contains("draw_mode"));
-        assert!(!json.contains("stroke"));
 
         let deserialized: DrawingLayer = serde_json::from_str(&json).unwrap();
 
         // Check that polylines are restored correctly.
         assert_eq!(deserialized.polylines, layer.polylines);
 
-        // Check that skipped fields have their values from the `default()` implementation,
-        // not from the original `layer` object.
+        // Check that the stroke information is correct
+        assert_eq!(deserialized.stroke.width, 5.0);
+        assert_eq!(deserialized.stroke.color, Color32::BLUE);
+
+        // Default is drawmode disabled and its not serializable
         assert_eq!(deserialized.draw_mode, DrawMode::Disabled);
-        assert_eq!(deserialized.stroke.width, 2.0);
-        assert_eq!(deserialized.stroke.color, Color32::RED);
+    }
+
+    #[cfg(feature = "geojson")]
+    mod geojson_tests {
+        use super::*;
+
+        #[test]
+        fn drawing_layer_geojson() {
+            let mut layer = DrawingLayer::default();
+            layer.polylines.push(Polyline(vec![
+                (10.0, 20.0).into(),
+                (30.0, 40.0).into(),
+                (50.0, 60.0).into(),
+            ]));
+            layer.stroke = Stroke::new(5.0, Color32::BLUE);
+
+            let geojson_str = layer.to_geojson_str().unwrap();
+
+            let mut new_layer = DrawingLayer::default();
+            new_layer.from_geojson_str(&geojson_str).unwrap();
+
+            assert_eq!(new_layer.polylines.len(), 1);
+            assert_eq!(layer.polylines[0], new_layer.polylines[0]);
+            assert_eq!(layer.stroke, new_layer.stroke);
+        }
     }
 }
