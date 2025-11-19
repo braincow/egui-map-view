@@ -74,7 +74,20 @@ impl DrawingLayer {
             .polylines
             .clone()
             .into_iter()
-            .map(geojson::Feature::from)
+            .map(|p| {
+                let mut feature = geojson::Feature::from(p);
+                if let Some(properties) = &mut feature.properties {
+                    properties.insert(
+                        "stroke_width".to_string(),
+                        serde_json::Value::from(self.stroke.width),
+                    );
+                    properties.insert(
+                        "stroke_color".to_string(),
+                        serde_json::Value::String(self.stroke.color.to_hex()),
+                    );
+                }
+                feature
+            })
             .collect();
 
         let mut foreign_members = serde_json::Map::new();
@@ -101,9 +114,27 @@ impl DrawingLayer {
         let feature_collection: geojson::FeatureCollection = serde_json::from_str(s)?;
         let new_polylines: Vec<Polyline> = feature_collection
             .features
-            .into_iter()
-            .into_iter()
-            .filter_map(|f| Polyline::try_from(f).ok())
+            .iter()
+            .filter_map(|f| {
+                let polyline = Polyline::try_from(f.clone()).ok();
+                if polyline.is_some() {
+                    if let Some(properties) = &f.properties {
+                        if let Some(value) = properties.get("stroke_width") {
+                            if let Some(width) = value.as_f64() {
+                                self.stroke.width = width as f32;
+                            }
+                        }
+                        if let Some(value) = properties.get("stroke_color") {
+                            if let Some(s) = value.as_str() {
+                                if let Ok(color) = Color32::from_hex(s) {
+                                    self.stroke.color = color;
+                                }
+                            }
+                        }
+                    }
+                }
+                polyline
+            })
             .collect();
         self.polylines.extend(new_polylines);
 
