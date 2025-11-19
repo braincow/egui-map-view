@@ -28,10 +28,32 @@
             },
             "properties": {
                 "x-egui-map-view-crate-name": "egui-map-view",
-                "x-egui-map-view-crate-version": "0.1.0",
+                "x-egui-map-view-crate-version": "0.2.3",
                 "stroke_color": "#ff0000ff",
                 "stroke_width": 2.0,
                 "fill_color": "#ff000080"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    6.5,
+                    57.0
+                ]
+            },
+            "properties": {
+                "x-egui-map-view-crate-name": "egui-map-view",
+                "x-egui-map-view-crate-version": "0.2.3",
+                "point": "text",
+                "size_type": "Relative",
+                "size": 10,
+                "background": "#0066ff80",
+                "text": "Polygon",
+                "color": "#0066ffff",
+                "stroke_color": "",
+                "stroke_width": 2.0
             }
         },
         {
@@ -45,11 +67,34 @@
             },
             "properties": {
                 "x-egui-map-view-crate-name": "egui-map-view",
-                "x-egui-map-view-crate-version": "0.1.0",
+                "x-egui-map-view-crate-version": "0.2.3",
+                "point": "circle",
                 "radius": 150000.0,
                 "stroke_color": "#0066ffff",
                 "stroke_width": 2.0,
                 "fill_color": "#0066ff80"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    6.5,
+                    55.0
+                ]
+            },
+            "properties": {
+                "x-egui-map-view-crate-name": "egui-map-view",
+                "x-egui-map-view-crate-version": "0.2.3",
+                "point": "text",
+                "size_type": "Relative",
+                "size": 10,
+                "background": "#0066ff80",
+                "text": "Circle",
+                "color": "#0066ffff",
+                "stroke_color": "",
+                "stroke_width": 2.0
             }
         }
     ]

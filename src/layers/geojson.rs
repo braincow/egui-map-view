@@ -110,7 +110,7 @@ impl From<Feature> for Area {
                         polygon_points.pop();
                     }
 
-                    AreaShape::Polygon(polygon_points)
+                    Some(AreaShape::Polygon(polygon_points))
                 }
                 Value::Point(point) => {
                     let properties = feature.properties.as_ref().unwrap();
@@ -121,25 +121,23 @@ impl From<Feature> for Area {
                         .unwrap_or_default();
                     let points = properties.get("points").and_then(|v| v.as_i64());
 
-                    if radius > 0.0 {
-                        AreaShape::Circle {
-                            center,
-                            radius,
-                            points,
-                        }
-                    } else {
-                        AreaShape::Polygon(vec![]) // Not a circle, return empty polygon.
+                    if radius <= 0.0 {
+                        return None;
                     }
+
+                    Some(AreaShape::Circle {
+                        center,
+                        radius,
+                        points,
+                    })
                 }
-                _ => {
-                    // Fallback or error. For now, create a default polygon.
-                    AreaShape::Polygon(vec![])
-                }
+                _ => None,
             }
         } else {
-            AreaShape::Polygon(vec![])
+            None
         };
 
+        // default stroke and fill settings to use if not present in the feature properties
         let mut stroke = Stroke::new(1.0, Color32::RED);
         let mut fill = Color32::TRANSPARENT;
 
@@ -166,10 +164,14 @@ impl From<Feature> for Area {
             }
         }
 
-        Area {
-            shape,
-            stroke,
-            fill,
+        if let Some(shape) = shape {
+            Area {
+                shape,
+                stroke,
+                fill,
+            }
+        } else {
+            None
         }
     }
 }

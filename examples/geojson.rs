@@ -41,14 +41,14 @@ impl Default for MyApp {
         // Deserialize the GeoJSON into the AreaLayer.
         let mut area_layer = AreaLayer::default();
         if let Err(e) = area_layer.from_geojson_str(&geojson_str) {
-            log::error!("Failed to deserialize GeoJSON: {}", e);
+            log::error!("Failed to deserialize shapes from GeoJSON: {}", e);
         }
         map.add_layer("areas", area_layer);
 
         // Deserialize the GeoJSON into the TextLayer.
         let mut text_layer = TextLayer::default();
         if let Err(e) = text_layer.from_geojson_str(&geojson_str) {
-            log::error!("Failed to deserialize GeoJSON: {}", e);
+            log::error!("Failed to deserialize text from GeoJSON: {}", e);
         }
         map.add_layer("text", text_layer);
 
