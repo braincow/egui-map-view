@@ -93,16 +93,18 @@ impl From<Area> for Feature {
     }
 }
 
-impl From<Feature> for Area {
-    fn from(feature: Feature) -> Self {
-        let shape = if let Some(geometry) = feature.geometry {
-            match geometry.value {
-                Value::Polygon(mut points) => {
+impl TryFrom<Feature> for Area {
+    type Error = String;
+
+    fn try_from(feature: Feature) -> Result<Self, Self::Error> {
+        let shape = if let Some(geometry) = &feature.geometry {
+            match &geometry.value {
+                Value::Polygon(points) => {
                     let mut polygon_points: Vec<GeoPos> = points
-                        .pop()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|pos| pos.into())
+                        .first()
+                        .ok_or("Polygon has no rings")?
+                        .iter()
+                        .map(|pos| pos.clone().into())
                         .collect();
 
                     // Remove the closing point, as AreaShape::Polygon doesn't expect it.
@@ -113,8 +115,11 @@ impl From<Feature> for Area {
                     Some(AreaShape::Polygon(polygon_points))
                 }
                 Value::Point(point) => {
-                    let properties = feature.properties.as_ref().unwrap();
-                    let center: GeoPos = point.into();
+                    let properties = feature
+                        .properties
+                        .as_ref()
+                        .ok_or("Feature has no properties")?;
+                    let center: GeoPos = point.clone().into();
                     let radius = properties
                         .get("radius")
                         .and_then(|v| v.as_f64())
@@ -122,7 +127,7 @@ impl From<Feature> for Area {
                     let points = properties.get("points").and_then(|v| v.as_i64());
 
                     if radius <= 0.0 {
-                        return None;
+                        return Err("Radius must be greater than 0".to_string());
                     }
 
                     Some(AreaShape::Circle {
@@ -136,6 +141,8 @@ impl From<Feature> for Area {
         } else {
             None
         };
+
+        let shape = shape.ok_or("Unsupported geometry or missing shape data")?;
 
         // default stroke and fill settings to use if not present in the feature properties
         let mut stroke = Stroke::new(1.0, Color32::RED);
@@ -164,15 +171,11 @@ impl From<Feature> for Area {
             }
         }
 
-        if let Some(shape) = shape {
-            Area {
-                shape,
-                stroke,
-                fill,
-            }
-        } else {
-            None
-        }
+        Ok(Area {
+            shape,
+            stroke,
+            fill,
+        })
     }
 }
 
@@ -188,17 +191,21 @@ impl From<Polyline> for Feature {
     }
 }
 
-impl From<Feature> for Polyline {
-    fn from(feature: Feature) -> Self {
+impl TryFrom<Feature> for Polyline {
+    type Error = String;
+
+    fn try_from(feature: Feature) -> Result<Self, Self::Error> {
         if let Some(geometry) = feature.geometry {
             if let Value::LineString(line_string) = geometry.value {
-                return Polyline(line_string.iter().map(|pos| pos.clone().into()).collect());
+                return Ok(Polyline(
+                    line_string.iter().map(|pos| pos.clone().into()).collect(),
+                ));
             }
         }
         if let Some(properties) = &feature.properties {
             check_version_from_properties(properties);
         }
-        Polyline(vec![])
+        Err("Feature is not a LineString".to_string())
     }
 }
 
@@ -238,20 +245,31 @@ impl From<Text> for Feature {
     }
 }
 
-impl From<Feature> for Text {
-    fn from(feature: Feature) -> Self {
+impl TryFrom<Feature> for Text {
+    type Error = String;
+
+    fn try_from(feature: Feature) -> Result<Self, Self::Error> {
         let mut text = Text::default();
         if let Some(geometry) = feature.geometry {
             if let Value::Point(point) = geometry.value {
                 text.pos = point.into();
+            } else {
+                return Err("Feature is not a Point".to_string());
             }
+        } else {
+            return Err("Feature has no geometry".to_string());
         }
+
         if let Some(properties) = feature.properties {
             check_version_from_properties(&properties);
             if let Some(value) = properties.get("text") {
                 if let Some(s) = value.as_str() {
                     text.text = s.to_string();
+                } else {
+                    return Err("Property 'text' is not a string".to_string());
                 }
+            } else {
+                return Err("Feature has no 'text' property".to_string());
             }
             if let Some(value) = properties.get("color") {
                 if let Some(s) = value.as_str() {
@@ -279,6 +297,6 @@ impl From<Feature> for Text {
                 }
             }
         }
-        text
+        Ok(text)
     }
 }

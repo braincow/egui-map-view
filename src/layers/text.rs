@@ -171,7 +171,8 @@ impl TextLayer {
         let new_texts: Vec<Text> = feature_collection
             .features
             .into_iter()
-            .map(Text::from)
+            .into_iter()
+            .filter_map(|f| Text::try_from(f).ok())
             .collect();
         self.texts.extend(new_texts);
         Ok(())

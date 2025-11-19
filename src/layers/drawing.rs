@@ -102,7 +102,8 @@ impl DrawingLayer {
         let new_polylines: Vec<Polyline> = feature_collection
             .features
             .into_iter()
-            .map(Polyline::from)
+            .into_iter()
+            .filter_map(|f| Polyline::try_from(f).ok())
             .collect();
         self.polylines.extend(new_polylines);
 

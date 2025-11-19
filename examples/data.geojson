@@ -39,16 +39,16 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    6.5,
-                    57.0
+                    10.0,
+                    56.2
                 ]
             },
             "properties": {
                 "x-egui-map-view-crate-name": "egui-map-view",
                 "x-egui-map-view-crate-version": "0.2.3",
                 "point": "text",
-                "size_type": "Relative",
-                "size": 10,
+                "size_type": "Static",
+                "size": 20,
                 "background": "#0066ff80",
                 "text": "Polygon",
                 "color": "#0066ffff",
@@ -61,7 +61,7 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    6.5,
+                    8.0,
                     55.0
                 ]
             },
@@ -69,7 +69,7 @@
                 "x-egui-map-view-crate-name": "egui-map-view",
                 "x-egui-map-view-crate-version": "0.2.3",
                 "point": "circle",
-                "radius": 150000.0,
+                "radius": 50000.0,
                 "stroke_color": "#0066ffff",
                 "stroke_width": 2.0,
                 "fill_color": "#0066ff80"
@@ -80,7 +80,7 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    6.5,
+                    8.0,
                     55.0
                 ]
             },
@@ -88,8 +88,8 @@
                 "x-egui-map-view-crate-name": "egui-map-view",
                 "x-egui-map-view-crate-version": "0.2.3",
                 "point": "text",
-                "size_type": "Relative",
-                "size": 10,
+                "size_type": "Static",
+                "size": 20,
                 "background": "#0066ff80",
                 "text": "Circle",
                 "color": "#0066ffff",

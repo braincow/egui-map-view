@@ -36,7 +36,8 @@ impl Default for MyApp {
             std::fs::read_to_string("examples/data.geojson").expect("Failed to read data.geojson");
 
         let mut map = Map::new(OpenStreetMapConfig::default());
-        map.center = GeoPos::from((10.0, 55.0));
+        map.center = GeoPos::from((9.0, 55.0));
+        map.zoom = 8;
 
         // Deserialize the GeoJSON into the AreaLayer.
         let mut area_layer = AreaLayer::default();

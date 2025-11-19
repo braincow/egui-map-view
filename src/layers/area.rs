@@ -176,7 +176,8 @@ impl AreaLayer {
         let new_areas: Vec<Area> = feature_collection
             .features
             .into_iter()
-            .map(Area::from)
+            .into_iter()
+            .filter_map(|f| Area::try_from(f).ok())
             .collect();
         self.areas.extend(new_areas);
         Ok(())
