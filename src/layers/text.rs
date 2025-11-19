@@ -1,54 +1,10 @@
 //! A layer for placing text on the map.
 
-use crate::layers::Layer;
+use crate::layers::{Layer, serde_color32};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Response};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
-
-/// A helper module for serializing `egui::Color32`.
-mod ser_color {
-    use egui::Color32;
-    use serde::{self, Deserialize, Deserializer, Serializer};
-
-    pub fn serialize<S>(color: &Color32, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = color.to_hex();
-        serializer.serialize_str(&s)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Color32, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        if !s.starts_with('#') {
-            return Err(serde::de::Error::custom("hex color must start with '#'"));
-        }
-        let s = &s[1..];
-        let (r, g, b, a) = match s.len() {
-            6 => {
-                let r = u8::from_str_radix(&s[0..2], 16).map_err(serde::de::Error::custom)?;
-                let g = u8::from_str_radix(&s[2..4], 16).map_err(serde::de::Error::custom)?;
-                let b = u8::from_str_radix(&s[4..6], 16).map_err(serde::de::Error::custom)?;
-                (r, g, b, 255)
-            }
-            8 => {
-                let r = u8::from_str_radix(&s[0..2], 16).map_err(serde::de::Error::custom)?;
-                let g = u8::from_str_radix(&s[2..4], 16).map_err(serde::de::Error::custom)?;
-                let b = u8::from_str_radix(&s[4..6], 16).map_err(serde::de::Error::custom)?;
-                let a = u8::from_str_radix(&s[6..8], 16).map_err(serde::de::Error::custom)?;
-                (r, g, b, a)
-            }
-            _ => {
-                return Err(serde::de::Error::custom("invalid hex color length"));
-            }
-        };
-        Ok(Color32::from_rgba_unmultiplied(r, g, b, a))
-    }
-}
 
 /// The size of the text.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -80,11 +36,11 @@ pub struct Text {
     pub size: TextSize,
 
     /// The color of the text.
-    #[serde(with = "ser_color")]
+    #[serde(with = "serde_color32")]
     pub color: Color32,
 
     /// The color of the background.
-    #[serde(with = "ser_color")]
+    #[serde(with = "serde_color32")]
     pub background: Color32,
 }
 
@@ -189,6 +145,37 @@ impl TextLayer {
     /// Discards the changes made in the editing dialog.
     pub fn cancel_edit(&mut self) {
         self.editing = None;
+    }
+
+    /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    #[cfg(feature = "geojson")]
+    pub fn to_geojson_str(&self) -> Result<String, serde_json::Error> {
+        let features: Vec<geojson::Feature> = self
+            .texts
+            .clone()
+            .into_iter()
+            .map(geojson::Feature::from)
+            .collect();
+        let feature_collection = geojson::FeatureCollection {
+            bbox: None,
+            features,
+            foreign_members: None,
+        };
+        serde_json::to_string(&feature_collection)
+    }
+
+    /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    #[cfg(feature = "geojson")]
+    pub fn from_geojson_str(&mut self, s: &str) -> Result<(), serde_json::Error> {
+        let feature_collection: geojson::FeatureCollection = serde_json::from_str(s)?;
+        let new_texts: Vec<Text> = feature_collection
+            .features
+            .into_iter()
+            .into_iter()
+            .filter_map(|f| Text::try_from(f).ok())
+            .collect();
+        self.texts.extend(new_texts);
+        Ok(())
     }
 
     fn handle_modify_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
@@ -326,12 +313,14 @@ impl TextLayer {
 
     fn get_text_rect(&self, text: &Text, projection: &MapProjection, ctx: &egui::Context) -> Rect {
         let font_size = self.get_font_size(text, projection);
-        let galley = ctx.debug_painter().layout_job(egui::text::LayoutJob::simple(
-            text.text.clone(),
-            FontId::proportional(font_size),
-            text.color,
-            f32::INFINITY,
-        ));
+        let galley = ctx
+            .debug_painter()
+            .layout_job(egui::text::LayoutJob::simple(
+                text.text.clone(),
+                FontId::proportional(font_size),
+                text.color,
+                f32::INFINITY,
+            ));
         let screen_pos = projection.project(text.pos);
         Align2::CENTER_CENTER.anchor_rect(Rect::from_min_size(screen_pos, galley.size()))
     }
@@ -386,5 +375,29 @@ mod tests {
         );
         assert!(deserialized.editing.is_none());
         assert!(deserialized.dragged_text_index.is_none());
+    }
+
+    #[cfg(feature = "geojson")]
+    mod geojson_tests {
+        use super::*;
+
+        #[test]
+        fn text_layer_geojson() {
+            let mut layer = TextLayer::default();
+            layer.texts.push(Text {
+                text: "Hello".to_string(),
+                pos: (10.0, 20.0).into(),
+                size: TextSize::Static(14.0),
+                color: Color32::from_rgb(0, 0, 255),
+                background: Color32::from_rgba_unmultiplied(255, 0, 0, 128),
+            });
+
+            let geojson_str = layer.to_geojson_str().unwrap();
+            let mut new_layer = TextLayer::default();
+            new_layer.from_geojson_str(&geojson_str).unwrap();
+
+            assert_eq!(new_layer.texts.len(), 1);
+            assert_eq!(layer.texts[0], new_layer.texts[0]);
+        }
     }
 }

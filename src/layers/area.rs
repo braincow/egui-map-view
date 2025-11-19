@@ -42,7 +42,9 @@
 //! }
 //! ```
 
-use crate::layers::{Layer, dist_sq_to_segment, projection_factor, segments_intersect};
+use crate::layers::{
+    Layer, dist_sq_to_segment, projection_factor, segments_intersect, serde_color32, serde_stroke,
+};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Mesh, Painter, Pos2, Response, Shape, Stroke};
 use log::warn;
@@ -80,11 +82,13 @@ pub enum AreaShape {
 pub struct Area {
     /// The shape of the area.
     pub shape: AreaShape,
-    #[serde(skip)]
+
     /// The stroke style for drawing the polygon outlines.
+    #[serde(with = "serde_stroke")]
     pub stroke: Stroke,
-    #[serde(skip)]
+
     /// The fill color of the polygon.
+    #[serde(with = "serde_color32")]
     pub fill: Color32,
 }
 
@@ -146,6 +150,37 @@ impl AreaLayer {
     /// Adds a new area to the layer.
     pub fn add_area(&mut self, area: Area) {
         self.areas.push(area);
+    }
+
+    /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    #[cfg(feature = "geojson")]
+    pub fn to_geojson_str(&self) -> Result<String, serde_json::Error> {
+        let features: Vec<geojson::Feature> = self
+            .areas
+            .clone()
+            .into_iter()
+            .map(geojson::Feature::from)
+            .collect();
+        let feature_collection = geojson::FeatureCollection {
+            bbox: None,
+            features,
+            foreign_members: None,
+        };
+        serde_json::to_string(&feature_collection)
+    }
+
+    /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    #[cfg(feature = "geojson")]
+    pub fn from_geojson_str(&mut self, s: &str) -> Result<(), serde_json::Error> {
+        let feature_collection: geojson::FeatureCollection = serde_json::from_str(s)?;
+        let new_areas: Vec<Area> = feature_collection
+            .features
+            .into_iter()
+            .into_iter()
+            .filter_map(|f| Area::try_from(f).ok())
+            .collect();
+        self.areas.extend(new_areas);
+        Ok(())
     }
 
     fn handle_modify_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
@@ -648,8 +683,8 @@ mod tests {
         let mut layer = AreaLayer::default();
         layer.add_area(Area {
             shape: AreaShape::Polygon(vec![(0.0, 0.0).into()]),
-            stroke: Stroke::new(1.0, Color32::RED), // Should be skipped
-            fill: Color32::BLUE,                    // Should be skipped
+            stroke: Stroke::new(1.0, Color32::RED),
+            fill: Color32::BLUE,
         });
 
         let json = serde_json::to_string(&layer).unwrap();
@@ -657,5 +692,53 @@ mod tests {
 
         assert_eq!(deserialized.areas.len(), 1);
         assert_eq!(deserialized.mode, AreaMode::Disabled); // Restored to default
+    }
+
+    #[cfg(feature = "geojson")]
+    mod geojson_tests {
+        use super::*;
+
+        #[test]
+        fn area_layer_geojson_polygon() {
+            let mut layer = AreaLayer::default();
+            layer.add_area(Area {
+                shape: AreaShape::Polygon(vec![
+                    (10.0, 20.0).into(),
+                    (30.0, 40.0).into(),
+                    (50.0, 60.0).into(),
+                ]),
+                stroke: Stroke::new(2.0, Color32::from_rgb(0, 0, 255)),
+                fill: Color32::from_rgba_unmultiplied(255, 0, 0, 128),
+            });
+
+            let geojson_str = layer.to_geojson_str().unwrap();
+
+            let mut new_layer = AreaLayer::default();
+            new_layer.from_geojson_str(&geojson_str).unwrap();
+
+            assert_eq!(new_layer.areas.len(), 1);
+            assert_eq!(layer.areas[0], new_layer.areas[0]);
+        }
+
+        #[test]
+        fn area_layer_geojson_circle() {
+            let mut layer = AreaLayer::default();
+            layer.add_area(Area {
+                shape: AreaShape::Circle {
+                    center: (10.0, 20.0).into(),
+                    radius: 1000.0,
+                    points: Some(32),
+                },
+                stroke: Default::default(),
+                fill: Default::default(),
+            });
+
+            let geojson_str = layer.to_geojson_str().unwrap();
+            let mut new_layer = AreaLayer::default();
+            new_layer.from_geojson_str(&geojson_str).unwrap();
+
+            assert_eq!(new_layer.areas.len(), 1);
+            assert_eq!(layer.areas[0].shape, new_layer.areas[0].shape);
+        }
     }
 }
