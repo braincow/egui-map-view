@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Added `to_geojson_str` and `from_geojson_str` methods to supported layers.
 - Added `draw_many_layers_geojson` example demonstrating loading and saving layers.
 - Added `geojson` feature flag (enabled by default).
+- Added polygon draw layer support with `AreaLayer` (#29).
 
 ## [0.2.3] - 2024-11-15
 
