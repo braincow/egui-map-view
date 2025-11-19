@@ -22,6 +22,7 @@ A simple, interactive map view widget for `egui`.
 * **Robust layering system**: Add layers to the map that can display additional data on top of the base map.
   * Draw freehand information on top of the map with draw layer.
   * Add text fields to the map with text layer.
+* **GeoJSON Support**: Serialize and deserialize layers (Area, Drawing, Text) to and from GeoJSON.
 
 ## Usage
 

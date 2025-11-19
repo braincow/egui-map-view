@@ -1,7 +1,7 @@
 [package]
 name = "egui-map-view"
 description = "An slippy map viewer for egui applications."
-version = "0.2.3"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/braincow/egui-map-view"
