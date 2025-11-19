@@ -22,6 +22,9 @@ A simple, interactive map view widget for `egui`.
 * **Robust layering system**: Add layers to the map that can display additional data on top of the base map.
   * Draw freehand information on top of the map with draw layer.
   * Add text fields to the map with text layer.
+  * Add areas to the map with area layer.
+  * Display additional tiles on top of the base map with tile layer.
+* **GeoJSON Support**: Serialize and deserialize layers (Area, Drawing, Text) to and from GeoJSON.
 
 ## Usage
 
@@ -29,7 +32,7 @@ First, add `egui-map-view` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-egui-map-view = "0.2.2" # Replace with the latest version
+egui-map-view = "0.3.0" # Replace with the latest version
 ```
 
 Then, create a `Map` widget and add it to your `egui` UI.
