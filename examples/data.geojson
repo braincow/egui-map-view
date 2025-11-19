@@ -96,6 +96,36 @@
                 "stroke_color": "",
                 "stroke_width": 2.0
             }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        9.95,
+                        53.5
+                    ],
+                    [
+                        10.05,
+                        53.5
+                    ],
+                    [
+                        10.0,
+                        53.6
+                    ],
+                    [
+                        9.95,
+                        53.5
+                    ]
+                ]
+            },
+            "properties": {
+                "x-egui-map-view-crate-name": "egui-map-view",
+                "x-egui-map-view-crate-version": "0.2.3",
+                "stroke_color": "#00ff00ff",
+                "stroke_width": 5.0
+            }
         }
     ]
 }

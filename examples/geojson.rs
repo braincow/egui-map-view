@@ -5,7 +5,7 @@ use eframe::egui;
 use egui_map_view::{
     Map,
     config::OpenStreetMapConfig,
-    layers::{area::AreaLayer, text::TextLayer},
+    layers::{area::AreaLayer, drawing::DrawingLayer, text::TextLayer},
     projection::GeoPos,
 };
 
@@ -45,6 +45,13 @@ impl Default for MyApp {
             log::error!("Failed to deserialize shapes from GeoJSON: {}", e);
         }
         map.add_layer("areas", area_layer);
+
+        // Deserialize the GeoJSON into the DrawingLayer.
+        let mut drawing_layer = DrawingLayer::default();
+        if let Err(e) = drawing_layer.from_geojson_str(&geojson_str) {
+            log::error!("Failed to deserialize drawing from GeoJSON: {}", e);
+        }
+        map.add_layer("drawing", drawing_layer);
 
         // Deserialize the GeoJSON into the TextLayer.
         let mut text_layer = TextLayer::default();
