@@ -69,7 +69,9 @@ pub struct DrawingLayer {
 impl DrawingLayer {
     /// Serializes the layer to a GeoJSON `FeatureCollection`.
     #[cfg(feature = "geojson")]
-    pub fn to_geojson_str(&self) -> Result<String, serde_json::Error> {
+    /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    #[cfg(feature = "geojson")]
+    pub fn to_geojson_str(&self, layer_id: &str) -> Result<String, serde_json::Error> {
         let features: Vec<geojson::Feature> = self
             .polylines
             .clone()
@@ -85,6 +87,10 @@ impl DrawingLayer {
                         "stroke_color".to_string(),
                         serde_json::Value::String(self.stroke.color.to_hex()),
                     );
+                    properties.insert(
+                        "layer_id".to_string(),
+                        serde_json::Value::String(layer_id.to_string()),
+                    );
                 }
                 feature
             })
@@ -99,6 +105,10 @@ impl DrawingLayer {
             "stroke_color".to_string(),
             serde_json::Value::String(self.stroke.color.to_hex()),
         );
+        foreign_members.insert(
+            "layer_id".to_string(),
+            serde_json::Value::String(layer_id.to_string()),
+        );
 
         let feature_collection = geojson::FeatureCollection {
             bbox: None,
@@ -109,13 +119,42 @@ impl DrawingLayer {
     }
 
     /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    ///
+    /// If `layer_id` is provided, only features with a matching `layer_id` property will be added.
+    /// If `layer_id` is `None`, all valid features will be added.
     #[cfg(feature = "geojson")]
-    pub fn from_geojson_str(&mut self, s: &str) -> Result<(), serde_json::Error> {
+    pub fn from_geojson_str(
+        &mut self,
+        s: &str,
+        layer_id: Option<&str>,
+    ) -> Result<(), serde_json::Error> {
         let feature_collection: geojson::FeatureCollection = serde_json::from_str(s)?;
         let new_polylines: Vec<Polyline> = feature_collection
             .features
             .iter()
             .filter_map(|f| {
+                // Filter by layer_id if provided
+                if let Some(target_id) = layer_id {
+                    if let Some(properties) = &f.properties {
+                        if let Some(val) = properties.get("layer_id") {
+                            if let Some(id) = val.as_str() {
+                                if id != target_id {
+                                    return None;
+                                }
+                            } else {
+                                // layer_id property exists but is not a string, treat as mismatch
+                                return None;
+                            }
+                        } else {
+                            // layer_id property missing, treat as mismatch
+                            return None;
+                        }
+                    } else {
+                        // No properties, treat as mismatch
+                        return None;
+                    }
+                }
+
                 let polyline = Polyline::try_from(f.clone()).ok();
                 if polyline.is_some() {
                     if let Some(properties) = &f.properties {
@@ -139,6 +178,16 @@ impl DrawingLayer {
         self.polylines.extend(new_polylines);
 
         if let Some(foreign_members) = feature_collection.foreign_members {
+            // Check layer_id in foreign members if filtering is enabled?
+            // The requirement says "only those Polylines are deserialized into the the layer that have that layer ID in place".
+            // This implies filtering individual features.
+            // However, we might want to respect global properties if they match.
+            // But for now, let's just apply global properties if we processed any features OR if we are not filtering?
+            // Or maybe just always apply them if they exist?
+            // Let's stick to applying them always for now, as it was before, but maybe we should check layer_id here too?
+            // The prompt specifically talks about Polylines (features).
+            // "only those Polylines are deserialized into the the layer that have that layer ID in place"
+
             if let Some(value) = foreign_members.get("stroke_width") {
                 if let Some(width) = value.as_f64() {
                     self.stroke.width = width as f32;
@@ -415,14 +464,29 @@ mod tests {
             ]));
             layer.stroke = Stroke::new(5.0, Color32::BLUE);
 
-            let geojson_str = layer.to_geojson_str().unwrap();
+            let geojson_str = layer.to_geojson_str("my_layer").unwrap();
 
+            // Test deserialization with matching ID
             let mut new_layer = DrawingLayer::default();
-            new_layer.from_geojson_str(&geojson_str).unwrap();
+            new_layer
+                .from_geojson_str(&geojson_str, Some("my_layer"))
+                .unwrap();
 
             assert_eq!(new_layer.polylines.len(), 1);
             assert_eq!(layer.polylines[0], new_layer.polylines[0]);
             assert_eq!(layer.stroke, new_layer.stroke);
+
+            // Test deserialization with non-matching ID
+            let mut other_layer = DrawingLayer::default();
+            other_layer
+                .from_geojson_str(&geojson_str, Some("other_layer"))
+                .unwrap();
+            assert_eq!(other_layer.polylines.len(), 0);
+
+            // Test deserialization with None ID (should include all)
+            let mut all_layer = DrawingLayer::default();
+            all_layer.from_geojson_str(&geojson_str, None).unwrap();
+            assert_eq!(all_layer.polylines.len(), 1);
         }
     }
 }

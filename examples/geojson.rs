@@ -48,7 +48,7 @@ impl Default for MyApp {
 
         // Deserialize the GeoJSON into the DrawingLayer.
         let mut drawing_layer = DrawingLayer::default();
-        if let Err(e) = drawing_layer.from_geojson_str(&geojson_str) {
+        if let Err(e) = drawing_layer.from_geojson_str(&geojson_str, None) {
             log::error!("Failed to deserialize drawing from GeoJSON: {}", e);
         }
         map.add_layer("drawing", drawing_layer);
