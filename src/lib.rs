@@ -126,6 +126,9 @@ enum Tile {
 
     /// The tile failed to download.
     Failed(Arc<eyre::Report>),
+
+    /// The tile state is unknown.
+    Unknown,
 }
 
 /// The map widget.
@@ -511,7 +514,8 @@ pub(crate) fn draw_tile(
     tint: Color32,
 ) {
     let tile_rect = Rect::from_min_size(tile_pos, Vec2::new(TILE_SIZE as f32, TILE_SIZE as f32));
-    let tile_state = tiles.get(tile_id).unwrap();
+    let default_state = Tile::Unknown;
+    let tile_state = tiles.get(tile_id).unwrap_or(&default_state);
     match tile_state {
         Tile::Loading(_) => {
             // Draw a gray background and a border for the placeholder.
@@ -564,6 +568,27 @@ pub(crate) fn draw_tile(
 
             // Log the error message
             error!("Failed to load tile: {:?}", e);
+        }
+        Tile::Unknown => {
+            // Draw a gray background and a border for the placeholder.
+            painter.rect_filled(tile_rect, 0.0, Color32::from_gray(220));
+            painter.rect_stroke(
+                tile_rect,
+                0.0,
+                egui::Stroke::new(1.0, Color32::GRAY),
+                egui::StrokeKind::Inside,
+            );
+
+            // Draw a question mark in the center.
+            painter.text(
+                tile_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "?",
+                egui::FontId::proportional(40.0),
+                Color32::RED,
+            );
+
+            error!("Tile state not found for {:?}", tile_id);
         }
     }
 }
