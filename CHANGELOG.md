@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2025-11-22
+
+### Fixed
+
+- Fixed regression where double-clicking a polygon line segment failed to insert a new vertex. (#32)
+
 ## [0.3.0] - 2025-11-19
 
 ### Added
