@@ -221,39 +221,65 @@ impl AreaLayer {
         }
 
         if response.dragged() {
-            if let Some(dragged_object) = &self.dragged_object {
+            if let Some(dragged_object) = self.dragged_object.clone() {
                 if let Some(pointer_pos) = response.interact_pointer_pos() {
                     match dragged_object {
                         DraggedObject::PolygonNode {
                             area_index,
                             node_index,
                         } => {
-                            if self.is_move_valid(*area_index, *node_index, pointer_pos, projection)
-                            {
-                                if let Some(area) = self.areas.get_mut(*area_index) {
+                            if self.is_move_valid(area_index, node_index, pointer_pos, projection) {
+                                if let Some(area) = self.areas.get_mut(area_index) {
+                                    let mut revert_info = None;
                                     if let AreaShape::Polygon(points) = &mut area.shape {
-                                        if let Some(node) = points.get_mut(*node_index) {
+                                        if let Some(node) = points.get_mut(node_index) {
+                                            let old_pos = *node;
                                             *node = projection.unproject(pointer_pos);
+                                            revert_info = Some(old_pos);
+                                        }
+                                    }
+
+                                    if let Some(old_pos) = revert_info {
+                                        if !area.can_triangulate(projection) {
+                                            warn!("Triangulation failed, cancelling drag");
+                                            self.dragged_object = None;
+                                            if let AreaShape::Polygon(points) = &mut area.shape {
+                                                points[node_index] = old_pos;
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                         DraggedObject::CircleCenter { area_index } => {
-                            if let Some(area) = self.areas.get_mut(*area_index) {
+                            if let Some(area) = self.areas.get_mut(area_index) {
+                                let mut revert_center = None;
                                 if let AreaShape::Circle { center, .. } = &mut area.shape {
+                                    revert_center = Some(*center);
                                     *center = projection.unproject(pointer_pos);
+                                }
+
+                                if let Some(old_center) = revert_center {
+                                    if !area.can_triangulate(projection) {
+                                        warn!("Triangulation failed, cancelling drag");
+                                        self.dragged_object = None;
+                                        if let AreaShape::Circle { center, .. } = &mut area.shape {
+                                            *center = old_center;
+                                        }
+                                    }
                                 }
                             }
                         }
                         DraggedObject::CircleRadius { area_index } => {
-                            if let Some(area) = self.areas.get_mut(*area_index) {
+                            if let Some(area) = self.areas.get_mut(area_index) {
+                                let mut revert_radius = None;
                                 if let AreaShape::Circle {
                                     center,
                                     radius,
                                     points: _,
                                 } = &mut area.shape
                                 {
+                                    revert_radius = Some(*radius);
                                     // Convert the new screen-space radius back to meters.
                                     let center_screen = projection.project(*center);
                                     let new_radius_pixels = pointer_pos.distance(center_screen);
@@ -267,6 +293,16 @@ impl AreaLayer {
                                     let distance_lat =
                                         (new_edge_geo.lat - center.lat).abs() * 110_574.0;
                                     *radius = (distance_lon.powi(2) + distance_lat.powi(2)).sqrt();
+                                }
+
+                                if let Some(old_radius) = revert_radius {
+                                    if !area.can_triangulate(projection) {
+                                        warn!("Triangulation failed, cancelling drag");
+                                        self.dragged_object = None;
+                                        if let AreaShape::Circle { radius, .. } = &mut area.shape {
+                                            *radius = old_radius;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -447,6 +483,22 @@ impl AreaLayer {
 }
 
 impl Area {
+    /// Checks if the area can be successfully triangulated.
+    fn can_triangulate(&self, projection: &MapProjection) -> bool {
+        let points = self.get_points(projection);
+        let screen_points: Vec<Pos2> = points.iter().map(|p| projection.project(*p)).collect();
+
+        if screen_points.len() < 3 {
+            return true;
+        }
+
+        let flat_points: Vec<f64> = screen_points
+            .iter()
+            .flat_map(|p| [p.x as f64, p.y as f64])
+            .collect();
+        earcutr::earcut(&flat_points, &[], 2).is_ok()
+    }
+
     /// Returns the points of the area. For a circle, it generates a polygon approximation.
     fn get_points(&self, projection: &MapProjection) -> Vec<GeoPos> {
         match &self.shape {
@@ -528,19 +580,24 @@ impl Layer for AreaLayer {
                     .iter()
                     .flat_map(|p| [p.x as f64, p.y as f64])
                     .collect();
-                let indices = earcutr::earcut(&flat_points, &[], 2).unwrap(); // <-- TODO: FIX UNWRAP!
-
-                let mut mesh = Mesh::default();
-                mesh.vertices = screen_points
-                    .iter()
-                    .map(|p| egui::epaint::Vertex {
-                        pos: *p,
-                        uv: Default::default(),
-                        color: area.fill,
-                    })
-                    .collect();
-                mesh.indices = indices.into_iter().map(|i| i as u32).collect();
-                painter.add(Shape::Mesh(mesh.into()));
+                match earcutr::earcut(&flat_points, &[], 2) {
+                    Ok(indices) => {
+                        let mut mesh = Mesh::default();
+                        mesh.vertices = screen_points
+                            .iter()
+                            .map(|p| egui::epaint::Vertex {
+                                pos: *p,
+                                uv: Default::default(),
+                                color: area.fill,
+                            })
+                            .collect();
+                        mesh.indices = indices.into_iter().map(|i| i as u32).collect();
+                        painter.add(Shape::Mesh(mesh.into()));
+                    }
+                    Err(e) => {
+                        warn!("Failed to triangulate area: {:?}", e);
+                    }
+                }
             } else {
                 warn!("Invalid amount of points in area. {:?}", area);
             }
@@ -697,6 +754,39 @@ mod tests {
 
         assert_eq!(deserialized.areas.len(), 1);
         assert_eq!(deserialized.mode, AreaMode::Disabled); // Restored to default
+    }
+
+    #[test]
+    fn test_can_triangulate_valid() {
+        let projection = dummy_projection();
+        let area = Area {
+            shape: AreaShape::Polygon(vec![
+                (0.0, 0.0).into(),
+                (10.0, 0.0).into(),
+                (0.0, 10.0).into(),
+            ]),
+            stroke: Default::default(),
+            fill: Default::default(),
+        };
+
+        assert!(area.can_triangulate(&projection));
+    }
+
+    #[test]
+    fn test_can_triangulate_insufficient_points() {
+        let projection = dummy_projection();
+        let area = Area {
+            shape: AreaShape::Polygon(vec![
+                (0.0, 0.0).into(),
+                (10.0, 0.0).into(),
+            ]),
+            stroke: Default::default(),
+            fill: Default::default(),
+        };
+
+        // Should return true as we don't consider < 3 points as a triangulation failure
+        // (it simply doesn't draw anything)
+        assert!(area.can_triangulate(&projection));
     }
 
     #[cfg(feature = "geojson")]
