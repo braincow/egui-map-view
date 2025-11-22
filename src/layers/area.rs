@@ -350,10 +350,15 @@ impl AreaLayer {
     }
 
     fn find_node_at(&self, screen_pos: Pos2, projection: &MapProjection) -> Option<(usize, usize)> {
-        // This function is now a subset of find_object_at, kept for double-click to add node.
-        // TODO: this probably should be refactored.
-        self.find_line_segment_at(screen_pos, projection)
+        match self.find_object_at(screen_pos, projection) {
+            Some(DraggedObject::PolygonNode {
+                area_index,
+                node_index,
+            }) => Some((area_index, node_index)),
+            _ => None,
+        }
     }
+
     fn find_line_segment_at(
         &self,
         screen_pos: Pos2,
@@ -740,5 +745,32 @@ mod tests {
             assert_eq!(new_layer.areas.len(), 1);
             assert_eq!(layer.areas[0].shape, new_layer.areas[0].shape);
         }
+    }
+
+    #[test]
+    fn find_node_at_on_segment() {
+        let projection = dummy_projection();
+        let mut layer = AreaLayer::default();
+
+        let p1 = projection.unproject(pos2(100.0, 100.0));
+        let p2 = projection.unproject(pos2(200.0, 100.0));
+
+        layer.add_area(Area {
+            shape: AreaShape::Polygon(vec![p1, p2, projection.unproject(pos2(150.0, 200.0))]), // Triangle
+            stroke: Default::default(),
+            fill: Default::default(),
+        });
+
+        // Click exactly between p1 and p2
+        let click_pos = pos2(150.0, 100.0);
+
+        // Should NOT find a node
+        assert!(layer.find_node_at(click_pos, &projection).is_none());
+
+        // Should find the segment
+        let segment = layer.find_line_segment_at(click_pos, &projection);
+        assert!(segment.is_some());
+        assert_eq!(segment.unwrap().0, 0); // area_index
+        assert_eq!(segment.unwrap().1, 0);
     }
 }
