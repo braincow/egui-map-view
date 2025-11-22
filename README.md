@@ -32,7 +32,7 @@ First, add `egui-map-view` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-egui-map-view = "0.3.0" # Replace with the latest version
+egui-map-view = "0.3.1" # Replace with the latest version
 ```
 
 Then, create a `Map` widget and add it to your `egui` UI.
