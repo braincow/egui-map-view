@@ -531,7 +531,7 @@ pub(crate) fn draw_tile(
             painter.text(
                 tile_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "?",
+                "⌛",
                 egui::FontId::proportional(40.0),
                 Color32::ORANGE,
             );
@@ -561,7 +561,7 @@ pub(crate) fn draw_tile(
             painter.text(
                 tile_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "!",
+                "❌",
                 egui::FontId::proportional(40.0),
                 Color32::RED,
             );
@@ -583,7 +583,7 @@ pub(crate) fn draw_tile(
             painter.text(
                 tile_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "?",
+                "❓",
                 egui::FontId::proportional(40.0),
                 Color32::RED,
             );
