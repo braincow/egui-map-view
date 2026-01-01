@@ -9,7 +9,7 @@ homepage = "https://github.com/braincow/egui-map-view"
 keywords = ["egui", "map", "openstreetmap"]
 
 [dependencies]
-eframe = "0.33.2"
+eframe = "0.33.3"
 poll-promise = "0.3"
 image = "0.25.9"
 reqwest = { version = "0.12", features = ["blocking"] }
