@@ -1126,7 +1126,7 @@ dependencies = [
 
 [[package]]
 name = "egui-map-view"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "earcutr",
  "eframe",
