@@ -22,6 +22,21 @@ pub struct SvgElement {
     /// If false, the image size stays the same in screen pixels.
     /// If true, the image size scales with the map.
     pub scalable: bool,
+
+    /// Whether the SVG element is clickable.
+    /// If true, click events will be emitted for this element.
+    /// If false, no click events will be emitted.
+    #[serde(default = "default_true")]
+    pub clickable: bool,
+
+    /// Whether the SVG element is draggable.
+    /// If true, the element can be moved on the map by dragging it with the mouse.
+    #[serde(default)]
+    pub draggable: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl SvgElement {
@@ -32,6 +47,8 @@ impl SvgElement {
             text: text.into(),
             metadata: metadata.into(),
             scalable: false,
+            clickable: true,
+            draggable: false,
         }
     }
 
@@ -42,12 +59,26 @@ impl SvgElement {
             text: text.into(),
             metadata: metadata.into(),
             scalable: false,
+            clickable: true,
+            draggable: false,
         }
     }
 
     /// Sets whether the SVG element is scalable.
     pub fn with_scalable(mut self, scalable: bool) -> Self {
         self.scalable = scalable;
+        self
+    }
+
+    /// Sets whether the SVG element is clickable.
+    pub fn with_clickable(mut self, clickable: bool) -> Self {
+        self.clickable = clickable;
+        self
+    }
+
+    /// Sets whether the SVG element is draggable.
+    pub fn with_draggable(mut self, draggable: bool) -> Self {
+        self.draggable = draggable;
         self
     }
 }
@@ -74,6 +105,10 @@ pub struct SvgLayer {
     /// Click events that have occurred on the SVG elements.
     #[serde(skip)]
     pub events: Vec<SvgClickEvent>,
+
+    /// The index of the element currently being dragged.
+    #[serde(skip)]
+    pub dragging_index: Option<usize>,
 }
 
 impl SvgLayer {
@@ -114,27 +149,55 @@ impl Layer for SvgLayer {
         }
 
         let mut handled = false;
-        if response.clicked() || response.secondary_clicked() {
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
-                for element in &self.elements {
-                    let screen_pos = projection.project(element.pos);
-                    let uri = format!("bytes://{}.svg", rust_hash(&element.text));
 
-                    if let Ok(egui::load::TexturePoll::Ready { texture }) = response.ctx.try_load_texture(
-                        &uri,
-                        egui::TextureOptions::default(),
-                        Default::default(),
-                    ) {
-                        let mut size = texture.size;
+        // Handle active dragging
+        if let Some(index) = self.dragging_index {
+            if response.dragged() {
+                if let Some(pointer_pos) = response.interact_pointer_pos() {
+                    if let Some(element) = self.elements.get_mut(index) {
+                        element.pos = projection.unproject(pointer_pos);
+                        handled = true;
+                        response.ctx.request_repaint();
+                    }
+                }
+            } else {
+                self.dragging_index = None;
+            }
+        }
 
-                        if element.scalable {
-                            // Scale the size based on the zoom level.
-                            let scale = 2.0_f32.powi(projection.zoom as i32 - 10);
-                            size *= scale;
+        // Detect drag start or click
+        if let Some(pointer_pos) = response.interact_pointer_pos() {
+            for (index, element) in self.elements.iter_mut().enumerate() {
+                if !element.clickable && !element.draggable {
+                    continue;
+                }
+
+                let screen_pos = projection.project(element.pos);
+                let uri = format!("bytes://{}.svg", rust_hash(&element.text));
+
+                if let Ok(egui::load::TexturePoll::Ready { texture }) = response.ctx.try_load_texture(
+                    &uri,
+                    egui::TextureOptions::default(),
+                    Default::default(),
+                ) {
+                    let mut size = texture.size;
+
+                    if element.scalable {
+                        // Scale the size based on the zoom level.
+                        let scale = 2.0_f32.powi(projection.zoom as i32 - 10);
+                        size *= scale;
+                    }
+
+                    let rect = egui::Rect::from_center_size(screen_pos, size);
+                    if rect.contains(pointer_pos) {
+                        // Check for drag start
+                        if element.draggable && response.drag_started() {
+                            self.dragging_index = Some(index);
+                            handled = true;
                         }
 
-                        let rect = egui::Rect::from_center_size(screen_pos, size);
-                        if rect.contains(pointer_pos) {
+                        // Check for clicks
+                        if element.clickable && (response.clicked() || response.secondary_clicked()) {
                             let button = if response.secondary_clicked() {
                                 PointerButton::Secondary
                             } else {
@@ -211,6 +274,8 @@ mod tests {
             text: "<svg></svg>".to_string(),
             metadata: "test metadata".to_string(),
             scalable: false,
+            clickable: true,
+            draggable: false,
         });
 
         let json = serde_json::to_string(&layer).unwrap();
@@ -220,5 +285,58 @@ mod tests {
         assert_eq!(deserialized.elements[0].text, "<svg></svg>");
         assert_eq!(deserialized.elements[0].metadata, "test metadata");
         assert_eq!(deserialized.elements[0].pos, GeoPos { lon: 1.0, lat: 2.0 });
+        assert!(deserialized.elements[0].clickable);
+        assert!(!deserialized.elements[0].draggable);
+    }
+
+    #[test]
+    fn svg_layer_serde_backward_compatibility() {
+        let json = r#"{
+            "elements": [
+                {
+                    "pos": {"lon": 1.0, "lat": 2.0},
+                    "text": "<svg></svg>",
+                    "metadata": "test metadata",
+                    "scalable": false
+                }
+            ]
+        }"#;
+        let deserialized: SvgLayer = serde_json::from_str(json).unwrap();
+        assert!(deserialized.elements[0].clickable);
+        assert!(!deserialized.elements[0].draggable);
+    }
+
+    #[test]
+    fn svg_layer_clickable_false() {
+        let mut layer = SvgLayer::default();
+        layer.add_element(SvgElement {
+            pos: GeoPos { lon: 1.0, lat: 2.0 },
+            text: "<svg></svg>".to_string(),
+            metadata: "test metadata".to_string(),
+            scalable: false,
+            clickable: false,
+            draggable: false,
+        });
+
+        let json = serde_json::to_string(&layer).unwrap();
+        let deserialized: SvgLayer = serde_json::from_str(&json).unwrap();
+        assert!(!deserialized.elements[0].clickable);
+    }
+
+    #[test]
+    fn svg_layer_draggable_true() {
+        let mut layer = SvgLayer::default();
+        layer.add_element(SvgElement {
+            pos: GeoPos { lon: 1.0, lat: 2.0 },
+            text: "<svg></svg>".to_string(),
+            metadata: "test metadata".to_string(),
+            scalable: false,
+            clickable: false,
+            draggable: true,
+        });
+
+        let json = serde_json::to_string(&layer).unwrap();
+        let deserialized: SvgLayer = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.elements[0].draggable);
     }
 }
