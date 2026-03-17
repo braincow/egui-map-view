@@ -1,0 +1,159 @@
+//! A layer for placing SVG elements on the map.
+
+use crate::layers::Layer;
+use crate::projection::{GeoPos, MapProjection};
+use egui::{Color32, Painter, Response};
+use serde::{Deserialize, Serialize};
+use std::any::Any;
+
+/// An SVG element on the map.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SvgElement {
+    /// The geographical position (longitude, latitude) of the SVG element.
+    pub pos: GeoPos,
+
+    /// The SVG content string.
+    pub text: String,
+
+    /// Arbitrary metadata string, not rendered.
+    pub metadata: String,
+
+    /// Whether the SVG element should scale with the zoom level.
+    /// If false, the image size stays the same in screen pixels.
+    /// If true, the image size scales with the map.
+    pub scalable: bool,
+}
+
+impl SvgElement {
+    /// Creates a new SVG element.
+    pub fn new(pos: GeoPos, text: impl Into<String>, metadata: impl Into<String>) -> Self {
+        Self {
+            pos,
+            text: text.into(),
+            metadata: metadata.into(),
+            scalable: false,
+        }
+    }
+
+    /// Creates a new SVG element from x (longitude) and y (latitude) coordinates.
+    pub fn from_xy(x: f64, y: f64, text: impl Into<String>, metadata: impl Into<String>) -> Self {
+        Self {
+            pos: GeoPos { lon: x, lat: y },
+            text: text.into(),
+            metadata: metadata.into(),
+            scalable: false,
+        }
+    }
+
+    /// Sets whether the SVG element is scalable.
+    pub fn with_scalable(mut self, scalable: bool) -> Self {
+        self.scalable = scalable;
+        self
+    }
+}
+
+/// Layer implementation that allows placing multiple SVG elements on the map.
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct SvgLayer {
+    /// The list of SVG elements.
+    pub elements: Vec<SvgElement>,
+}
+
+impl SvgLayer {
+    /// Adds an SVG element to the layer.
+    pub fn add_element(&mut self, element: SvgElement) {
+        self.elements.push(element);
+    }
+
+    /// Clears all SVG elements from the layer.
+    pub fn clear(&mut self) {
+        self.elements.clear();
+    }
+}
+
+impl Layer for SvgLayer {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn handle_input(&mut self, response: &Response, _projection: &MapProjection) -> bool {
+        // Ensure image loaders are installed
+        egui_extras::install_image_loaders(&response.ctx);
+        
+        for element in &self.elements {
+            let uri = format!("bytes://{}.svg", rust_hash(&element.text));
+            // include_bytes ensures the data is available for the loaders
+            response.ctx.include_bytes(uri, element.text.as_bytes().to_vec());
+        }
+        false
+    }
+
+    fn draw(&self, painter: &Painter, projection: &MapProjection) {
+        for element in &self.elements {
+            let screen_pos = projection.project(element.pos);
+            let uri = format!("bytes://{}.svg", rust_hash(&element.text));
+            
+            match painter.ctx().try_load_texture(&uri, egui::TextureOptions::default(), Default::default()) {
+                Ok(egui::load::TexturePoll::Ready { texture }) => {
+                    let mut size = texture.size;
+                    
+                    if element.scalable {
+                        // Scale the size based on the zoom level.
+                        // We use zoom level 10 as a reference where scale is 1.0.
+                        let scale = 2.0_f32.powi(projection.zoom as i32 - 10);
+                        size *= scale;
+                    }
+
+                    let rect = egui::Rect::from_center_size(screen_pos, size);
+                    painter.image(
+                        texture.id,
+                        rect,
+                        egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                        Color32::WHITE,
+                    );
+                }
+                _ => {
+                    // Still loading or failed. 
+                    // We could draw a placeholder here if desired.
+                    painter.ctx().request_repaint();
+                }
+            }
+        }
+    }
+}
+
+fn rust_hash(s: &str) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    s.hash(&mut hasher);
+    hasher.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn svg_layer_serde() {
+        let mut layer = SvgLayer::default();
+        layer.add_element(SvgElement {
+            pos: GeoPos { lon: 1.0, lat: 2.0 },
+            text: "<svg></svg>".to_string(),
+            metadata: "test metadata".to_string(),
+            scalable: false,
+        });
+
+        let json = serde_json::to_string(&layer).unwrap();
+        let deserialized: SvgLayer = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.elements.len(), 1);
+        assert_eq!(deserialized.elements[0].text, "<svg></svg>");
+        assert_eq!(deserialized.elements[0].metadata, "test metadata");
+        assert_eq!(deserialized.elements[0].pos, GeoPos { lon: 1.0, lat: 2.0 });
+    }
+}
