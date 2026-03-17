@@ -2,7 +2,7 @@
 
 use crate::layers::Layer;
 use crate::projection::{GeoPos, MapProjection};
-use egui::{Color32, Painter, Response};
+use egui::{Color32, Painter, PointerButton, Pos2, Response};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 
@@ -52,11 +52,28 @@ impl SvgElement {
     }
 }
 
+/// Information about a click on an SVG element.
+#[derive(Clone, Debug)]
+pub struct SvgClickEvent {
+    /// The button that was clicked.
+    pub button: PointerButton,
+    /// The metadata of the clicked SVG element.
+    pub metadata: String,
+    /// The geographical position where the click occurred.
+    pub world_pos: GeoPos,
+    /// The screen position where the click occurred.
+    pub screen_pos: Pos2,
+}
+
 /// Layer implementation that allows placing multiple SVG elements on the map.
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct SvgLayer {
     /// The list of SVG elements.
     pub elements: Vec<SvgElement>,
+
+    /// Click events that have occurred on the SVG elements.
+    #[serde(skip)]
+    pub events: Vec<SvgClickEvent>,
 }
 
 impl SvgLayer {
@@ -69,6 +86,11 @@ impl SvgLayer {
     pub fn clear(&mut self) {
         self.elements.clear();
     }
+
+    /// Takes all click events from the layer, leaving it empty.
+    pub fn take_events(&mut self) -> Vec<SvgClickEvent> {
+        std::mem::take(&mut self.events)
+    }
 }
 
 impl Layer for SvgLayer {
@@ -80,16 +102,59 @@ impl Layer for SvgLayer {
         self
     }
 
-    fn handle_input(&mut self, response: &Response, _projection: &MapProjection) -> bool {
+    fn handle_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
         // Ensure image loaders are installed
         egui_extras::install_image_loaders(&response.ctx);
-        
+
         for element in &self.elements {
             let uri = format!("bytes://{}.svg", rust_hash(&element.text));
             // include_bytes ensures the data is available for the loaders
-            response.ctx.include_bytes(uri, element.text.as_bytes().to_vec());
+            response.ctx
+                .include_bytes(uri, element.text.as_bytes().to_vec());
         }
-        false
+
+        let mut handled = false;
+        if response.clicked() || response.secondary_clicked() {
+            if let Some(pointer_pos) = response.interact_pointer_pos() {
+                for element in &self.elements {
+                    let screen_pos = projection.project(element.pos);
+                    let uri = format!("bytes://{}.svg", rust_hash(&element.text));
+
+                    if let Ok(egui::load::TexturePoll::Ready { texture }) = response.ctx.try_load_texture(
+                        &uri,
+                        egui::TextureOptions::default(),
+                        Default::default(),
+                    ) {
+                        let mut size = texture.size;
+
+                        if element.scalable {
+                            // Scale the size based on the zoom level.
+                            let scale = 2.0_f32.powi(projection.zoom as i32 - 10);
+                            size *= scale;
+                        }
+
+                        let rect = egui::Rect::from_center_size(screen_pos, size);
+                        if rect.contains(pointer_pos) {
+                            let button = if response.secondary_clicked() {
+                                PointerButton::Secondary
+                            } else {
+                                PointerButton::Primary
+                            };
+
+                            self.events.push(SvgClickEvent {
+                                button,
+                                metadata: element.metadata.clone(),
+                                world_pos: projection.unproject(pointer_pos),
+                                screen_pos: pointer_pos,
+                            });
+                            handled = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        handled
     }
 
     fn draw(&self, painter: &Painter, projection: &MapProjection) {

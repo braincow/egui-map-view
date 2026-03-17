@@ -70,5 +70,15 @@ impl eframe::App for MyApp {
             .show(ctx, |ui| {
                 ui.add_sized(ui.available_size_before_wrap(), &mut self.map);
             });
+
+        // Check for click events on the SVG layer
+        if let Some(svg_layer) = self.map.layer_mut::<SvgLayer>("svg_icons") {
+            for event in svg_layer.take_events() {
+                println!(
+                    "SVG clicked: {} with {:?} button at geo: {:?}, screen: {:?}",
+                    event.metadata, event.button, event.world_pos, event.screen_pos
+                );
+            }
+        }
     }
 }
