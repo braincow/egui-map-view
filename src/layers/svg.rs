@@ -33,6 +33,17 @@ pub struct SvgElement {
     /// If true, the element can be moved on the map by dragging it with the mouse.
     #[serde(default)]
     pub draggable: bool,
+
+    /// The anchor point of the SVG element, relative to its size.
+    /// (0.5, 0.5) is the center (default).
+    /// (0.0, 0.0) is the top-left.
+    /// (1.0, 1.0) is the bottom-right.
+    #[serde(default = "default_anchor")]
+    pub anchor: Pos2,
+}
+
+fn default_anchor() -> Pos2 {
+    Pos2::new(0.5, 0.5)
 }
 
 fn default_true() -> bool {
@@ -49,6 +60,7 @@ impl SvgElement {
             scalable: false,
             clickable: true,
             draggable: false,
+            anchor: default_anchor(),
         }
     }
 
@@ -61,6 +73,7 @@ impl SvgElement {
             scalable: false,
             clickable: true,
             draggable: false,
+            anchor: default_anchor(),
         }
     }
 
@@ -79,6 +92,12 @@ impl SvgElement {
     /// Sets whether the SVG element is draggable.
     pub fn with_draggable(mut self, draggable: bool) -> Self {
         self.draggable = draggable;
+        self
+    }
+
+    /// Sets the anchor point of the SVG element.
+    pub fn with_anchor(mut self, anchor: Pos2) -> Self {
+        self.anchor = anchor;
         self
     }
 }
@@ -144,7 +163,8 @@ impl Layer for SvgLayer {
         for element in &self.elements {
             let uri = format!("bytes://{}.svg", rust_hash(&element.text));
             // include_bytes ensures the data is available for the loaders
-            response.ctx
+            response
+                .ctx
                 .include_bytes(uri, element.text.as_bytes().to_vec());
         }
 
@@ -175,11 +195,10 @@ impl Layer for SvgLayer {
                 let screen_pos = projection.project(element.pos);
                 let uri = format!("bytes://{}.svg", rust_hash(&element.text));
 
-                if let Ok(egui::load::TexturePoll::Ready { texture }) = response.ctx.try_load_texture(
-                    &uri,
-                    egui::TextureOptions::default(),
-                    Default::default(),
-                ) {
+                if let Ok(egui::load::TexturePoll::Ready { texture }) = response
+                    .ctx
+                    .try_load_texture(&uri, egui::TextureOptions::default(), Default::default())
+                {
                     let mut size = texture.size;
 
                     if element.scalable {
@@ -188,7 +207,10 @@ impl Layer for SvgLayer {
                         size *= scale;
                     }
 
-                    let rect = egui::Rect::from_center_size(screen_pos, size);
+                    let rect = egui::Rect::from_min_size(
+                        screen_pos - size * element.anchor.to_vec2(),
+                        size,
+                    );
                     if rect.contains(pointer_pos) {
                         // Check for drag start
                         if element.draggable && response.drag_started() {
@@ -197,7 +219,8 @@ impl Layer for SvgLayer {
                         }
 
                         // Check for clicks
-                        if element.clickable && (response.clicked() || response.secondary_clicked()) {
+                        if element.clickable && (response.clicked() || response.secondary_clicked())
+                        {
                             let button = if response.secondary_clicked() {
                                 PointerButton::Secondary
                             } else {
@@ -224,11 +247,15 @@ impl Layer for SvgLayer {
         for element in &self.elements {
             let screen_pos = projection.project(element.pos);
             let uri = format!("bytes://{}.svg", rust_hash(&element.text));
-            
-            match painter.ctx().try_load_texture(&uri, egui::TextureOptions::default(), Default::default()) {
+
+            match painter.ctx().try_load_texture(
+                &uri,
+                egui::TextureOptions::default(),
+                Default::default(),
+            ) {
                 Ok(egui::load::TexturePoll::Ready { texture }) => {
                     let mut size = texture.size;
-                    
+
                     if element.scalable {
                         // Scale the size based on the zoom level.
                         // We use zoom level 10 as a reference where scale is 1.0.
@@ -236,7 +263,10 @@ impl Layer for SvgLayer {
                         size *= scale;
                     }
 
-                    let rect = egui::Rect::from_center_size(screen_pos, size);
+                    let rect = egui::Rect::from_min_size(
+                        screen_pos - size * element.anchor.to_vec2(),
+                        size,
+                    );
                     painter.image(
                         texture.id,
                         rect,
@@ -245,7 +275,7 @@ impl Layer for SvgLayer {
                     );
                 }
                 _ => {
-                    // Still loading or failed. 
+                    // Still loading or failed.
                     // We could draw a placeholder here if desired.
                     painter.ctx().request_repaint();
                 }
@@ -276,6 +306,7 @@ mod tests {
             scalable: false,
             clickable: true,
             draggable: false,
+            anchor: Pos2::new(0.5, 0.5),
         });
 
         let json = serde_json::to_string(&layer).unwrap();
@@ -316,6 +347,7 @@ mod tests {
             scalable: false,
             clickable: false,
             draggable: false,
+            anchor: default_anchor(),
         });
 
         let json = serde_json::to_string(&layer).unwrap();
@@ -333,6 +365,7 @@ mod tests {
             scalable: false,
             clickable: false,
             draggable: true,
+            anchor: default_anchor(),
         });
 
         let json = serde_json::to_string(&layer).unwrap();
