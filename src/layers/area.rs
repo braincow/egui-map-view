@@ -566,16 +566,18 @@ impl Layer for AreaLayer {
                     .collect();
                 match earcutr::earcut(&flat_points, &[], 2) {
                     Ok(indices) => {
-                        let mut mesh = Mesh::default();
-                        mesh.vertices = screen_points
-                            .iter()
-                            .map(|p| egui::epaint::Vertex {
-                                pos: *p,
-                                uv: Default::default(),
-                                color: area.fill,
-                            })
-                            .collect();
-                        mesh.indices = indices.into_iter().map(|i| i as u32).collect();
+                        let mesh = Mesh {
+                            vertices: screen_points
+                                .iter()
+                                .map(|p| egui::epaint::Vertex {
+                                    pos: *p,
+                                    uv: Default::default(),
+                                    color: area.fill,
+                                })
+                                .collect(),
+                            indices: indices.into_iter().map(|i| i as u32).collect(),
+                            ..Default::default()
+                        };
                         painter.add(Shape::Mesh(mesh.into()));
                     }
                     Err(e) => {

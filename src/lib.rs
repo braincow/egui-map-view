@@ -110,8 +110,8 @@ pub struct TileId {
 }
 
 impl TileId {
-    fn to_url(&self, config: &dyn MapConfig) -> String {
-        config.tile_url(self)
+    fn to_url(self, config: &dyn MapConfig) -> String {
+        config.tile_url(&self)
     }
 }
 
