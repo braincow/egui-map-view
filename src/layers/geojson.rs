@@ -191,7 +191,7 @@ impl TryFrom<Feature> for Polyline {
 
     fn try_from(feature: Feature) -> Result<Self, Self::Error> {
         if let Some(geometry) = feature.geometry
-            && let Value::LineString(line_string) = geometry.value {
+            && let GeometryValue::LineString { coordinates: line_string } = geometry.value {
                 return Ok(Polyline(
                     line_string.iter().map(|pos| GeoPos { lon: pos[0], lat: pos[1] }).collect(),
                 ));
