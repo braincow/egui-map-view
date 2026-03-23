@@ -137,6 +137,7 @@ impl Default for AreaLayer {
 
 impl AreaLayer {
     /// Creates a new `AreaLayer`.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             areas: Vec::new(),
@@ -152,7 +153,7 @@ impl AreaLayer {
         self.areas.push(area);
     }
 
-    /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    /// Serializes the layer to a `GeoJSON` `FeatureCollection`.
     #[cfg(feature = "geojson")]
     pub fn to_geojson_str(&self) -> Result<String, serde_json::Error> {
         let features: Vec<geojson::Feature> = self
@@ -169,7 +170,7 @@ impl AreaLayer {
         serde_json::to_string(&feature_collection)
     }
 
-    /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    /// Deserializes a `GeoJSON` `FeatureCollection` and adds the features to the layer.
     #[cfg(feature = "geojson")]
     pub fn from_geojson_str(&mut self, s: &str) -> Result<(), serde_json::Error> {
         let feature_collection: geojson::FeatureCollection = serde_json::from_str(s)?;
@@ -477,7 +478,7 @@ impl Area {
 
         let flat_points: Vec<f64> = screen_points
             .iter()
-            .flat_map(|p| [p.x as f64, p.y as f64])
+            .flat_map(|p| [f64::from(p.x), f64::from(p.y)])
             .collect();
         earcutr::earcut(&flat_points, &[], 2).is_ok()
     }
@@ -507,7 +508,7 @@ impl Area {
                 } else {
                     // Automatically determine the number of points based on the circle's radius
                     // to ensure it looks smooth.
-                    (radius_pixels as f64 * 2.0 * std::f64::consts::PI / 10.0).ceil() as i64
+                    (f64::from(radius_pixels) * 2.0 * std::f64::consts::PI / 10.0).ceil() as i64
                 };
                 let mut circle_points = Vec::with_capacity(num_points as usize);
 
@@ -561,7 +562,7 @@ impl Layer for AreaLayer {
                 // Triangulate for the fill.
                 let flat_points: Vec<f64> = screen_points
                     .iter()
-                    .flat_map(|p| [p.x as f64, p.y as f64])
+                    .flat_map(|p| [f64::from(p.x), f64::from(p.y)])
                     .collect();
                 match earcutr::earcut(&flat_points, &[], 2) {
                     Ok(indices) => {
@@ -578,11 +579,11 @@ impl Layer for AreaLayer {
                         painter.add(Shape::Mesh(mesh.into()));
                     }
                     Err(e) => {
-                        warn!("Failed to triangulate area: {:?}", e);
+                        warn!("Failed to triangulate area: {e:?}");
                     }
                 }
             } else {
-                warn!("Invalid amount of points in area. {:?}", area);
+                warn!("Invalid amount of points in area. {area:?}");
             }
 
             // Draw nodes only when in modify mode

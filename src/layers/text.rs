@@ -137,7 +137,7 @@ impl TextLayer {
         self.editing = None;
     }
 
-    /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    /// Serializes the layer to a `GeoJSON` `FeatureCollection`.
     #[cfg(feature = "geojson")]
     pub fn to_geojson_str(&self) -> Result<String, serde_json::Error> {
         let features: Vec<geojson::Feature> = self
@@ -154,7 +154,7 @@ impl TextLayer {
         serde_json::to_string(&feature_collection)
     }
 
-    /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    /// Deserializes a `GeoJSON` `FeatureCollection` and adds the features to the layer.
     #[cfg(feature = "geojson")]
     pub fn from_geojson_str(&mut self, s: &str) -> Result<(), serde_json::Error> {
         let feature_collection: geojson::FeatureCollection = serde_json::from_str(s)?;
@@ -288,7 +288,7 @@ impl TextLayer {
             TextSize::Relative(size_in_meters) => {
                 let p2 = projection.project(GeoPos {
                     lon: text.pos.lon
-                        + (size_in_meters as f64 / (111_320.0 * text.pos.lat.to_radians().cos())),
+                        + (f64::from(size_in_meters) / (111_320.0 * text.pos.lat.to_radians().cos())),
                     lat: text.pos.lat,
                 });
                 (p2.x - projection.project(text.pos).x).abs()

@@ -122,9 +122,9 @@ impl TryFrom<Feature> for Area {
                     let center: GeoPos = point.clone().into();
                     let radius = properties
                         .get("radius")
-                        .and_then(|v| v.as_f64())
+                        .and_then(serde_json::Value::as_f64)
                         .unwrap_or_default();
-                    let points = properties.get("points").and_then(|v| v.as_i64());
+                    let points = properties.get("points").and_then(serde_json::Value::as_i64);
 
                     if radius <= 0.0 {
                         return Err("Radius must be greater than 0".to_string());

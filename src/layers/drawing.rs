@@ -67,9 +67,9 @@ pub struct DrawingLayer {
 }
 
 impl DrawingLayer {
-    /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    /// Serializes the layer to a `GeoJSON` `FeatureCollection`.
     #[cfg(feature = "geojson")]
-    /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    /// Serializes the layer to a `GeoJSON` `FeatureCollection`.
     #[cfg(feature = "geojson")]
     pub fn to_geojson_str(&self, layer_id: &str) -> Result<String, serde_json::Error> {
         let features: Vec<geojson::Feature> = self
@@ -118,7 +118,7 @@ impl DrawingLayer {
         serde_json::to_string(&feature_collection)
     }
 
-    /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    /// Deserializes a `GeoJSON` `FeatureCollection` and adds the features to the layer.
     ///
     /// If `layer_id` is provided, only features with a matching `layer_id` property will be added.
     /// If `layer_id` is `None`, all valid features will be added.
@@ -194,6 +194,7 @@ impl DrawingLayer {
     }
 
     /// Creates a new `DrawingLayer`.
+    #[must_use] 
     pub fn new(stroke: Stroke) -> Self {
         Self {
             polylines: Vec::new(),

@@ -85,24 +85,28 @@ impl SvgElement {
     }
 
     /// Sets whether the SVG element is scalable.
+    #[must_use] 
     pub fn with_scalable(mut self, scalable: bool) -> Self {
         self.scalable = scalable;
         self
     }
 
     /// Sets whether the SVG element is clickable.
+    #[must_use] 
     pub fn with_clickable(mut self, clickable: bool) -> Self {
         self.clickable = clickable;
         self
     }
 
     /// Sets whether the SVG element is draggable.
+    #[must_use] 
     pub fn with_draggable(mut self, draggable: bool) -> Self {
         self.draggable = draggable;
         self
     }
 
     /// Sets the anchor point of the SVG element.
+    #[must_use] 
     pub fn with_anchor(mut self, anchor: Pos2) -> Self {
         self.anchor = anchor;
         self
@@ -209,7 +213,7 @@ impl Layer for SvgLayer {
 
                     if element.scalable {
                         // Scale the size based on the zoom level.
-                        let scale = 2.0_f32.powi(projection.zoom as i32 - 10);
+                        let scale = 2.0_f32.powi(i32::from(projection.zoom) - 10);
                         size *= scale;
                     }
 
@@ -265,7 +269,7 @@ impl Layer for SvgLayer {
                     if element.scalable {
                         // Scale the size based on the zoom level.
                         // We use zoom level 10 as a reference where scale is 1.0.
-                        let scale = 2.0_f32.powi(projection.zoom as i32 - 10);
+                        let scale = 2.0_f32.powi(i32::from(projection.zoom) - 10);
                         size *= scale;
                     }
 
