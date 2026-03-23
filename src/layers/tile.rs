@@ -48,7 +48,7 @@ impl Layer for TileLayer {
                 *tile_id,
             );
         }
-        return false;
+        false
     }
 
     fn draw(&self, painter: &Painter, _: &MapProjection) {

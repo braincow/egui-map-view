@@ -67,9 +67,9 @@ pub struct DrawingLayer {
 }
 
 impl DrawingLayer {
-    /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    /// Serializes the layer to a `GeoJSON` `FeatureCollection`.
     #[cfg(feature = "geojson")]
-    /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    /// Serializes the layer to a `GeoJSON` `FeatureCollection`.
     #[cfg(feature = "geojson")]
     pub fn to_geojson_str(&self, layer_id: &str) -> Result<String, serde_json::Error> {
         let features: Vec<geojson::Feature> = self
@@ -118,7 +118,7 @@ impl DrawingLayer {
         serde_json::to_string(&feature_collection)
     }
 
-    /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    /// Deserializes a `GeoJSON` `FeatureCollection` and adds the features to the layer.
     ///
     /// If `layer_id` is provided, only features with a matching `layer_id` property will be added.
     /// If `layer_id` is `None`, all valid features will be added.
@@ -156,20 +156,19 @@ impl DrawingLayer {
                 }
 
                 let polyline = Polyline::try_from(f.clone()).ok();
-                if polyline.is_some() {
-                    if let Some(properties) = &f.properties {
-                        if let Some(value) = properties.get("stroke_width") {
-                            if let Some(width) = value.as_f64() {
-                                self.stroke.width = width as f32;
-                            }
-                        }
-                        if let Some(value) = properties.get("stroke_color") {
-                            if let Some(s) = value.as_str() {
-                                if let Ok(color) = Color32::from_hex(s) {
-                                    self.stroke.color = color;
-                                }
-                            }
-                        }
+                if polyline.is_some()
+                    && let Some(properties) = &f.properties
+                {
+                    if let Some(value) = properties.get("stroke_width")
+                        && let Some(width) = value.as_f64()
+                    {
+                        self.stroke.width = width as f32;
+                    }
+                    if let Some(value) = properties.get("stroke_color")
+                        && let Some(s) = value.as_str()
+                        && let Ok(color) = Color32::from_hex(s)
+                    {
+                        self.stroke.color = color;
                     }
                 }
                 polyline
@@ -178,27 +177,16 @@ impl DrawingLayer {
         self.polylines.extend(new_polylines);
 
         if let Some(foreign_members) = feature_collection.foreign_members {
-            // Check layer_id in foreign members if filtering is enabled?
-            // The requirement says "only those Polylines are deserialized into the the layer that have that layer ID in place".
-            // This implies filtering individual features.
-            // However, we might want to respect global properties if they match.
-            // But for now, let's just apply global properties if we processed any features OR if we are not filtering?
-            // Or maybe just always apply them if they exist?
-            // Let's stick to applying them always for now, as it was before, but maybe we should check layer_id here too?
-            // The prompt specifically talks about Polylines (features).
-            // "only those Polylines are deserialized into the the layer that have that layer ID in place"
-
-            if let Some(value) = foreign_members.get("stroke_width") {
-                if let Some(width) = value.as_f64() {
-                    self.stroke.width = width as f32;
-                }
+            if let Some(value) = foreign_members.get("stroke_width")
+                && let Some(width) = value.as_f64()
+            {
+                self.stroke.width = width as f32;
             }
-            if let Some(value) = foreign_members.get("stroke_color") {
-                if let Some(s) = value.as_str() {
-                    if let Ok(color) = Color32::from_hex(s) {
-                        self.stroke.color = color;
-                    }
-                }
+            if let Some(value) = foreign_members.get("stroke_color")
+                && let Some(s) = value.as_str()
+                && let Ok(color) = Color32::from_hex(s)
+            {
+                self.stroke.color = color;
             }
         }
 
@@ -206,6 +194,7 @@ impl DrawingLayer {
     }
 
     /// Creates a new `DrawingLayer`.
+    #[must_use] 
     pub fn new(stroke: Stroke) -> Self {
         Self {
             polylines: Vec::new(),
@@ -231,18 +220,18 @@ impl DrawingLayer {
             response.ctx.set_cursor_icon(egui::CursorIcon::Crosshair);
         }
 
-        if response.clicked() {
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
-                let geo_pos = projection.unproject(pointer_pos);
-                if let Some(last_line) = self.polylines.last_mut()
-                    && response.ctx.input(|i| i.modifiers.shift)
-                {
-                    last_line.0.push(geo_pos);
-                } else {
-                    // No polylines exist yet, so create a new one.
-                    let geo_pos2 = projection.unproject(pointer_pos + egui::vec2(1.0, 0.0));
-                    self.polylines.push(Polyline(vec![geo_pos, geo_pos2]));
-                }
+        if response.clicked()
+            && let Some(pointer_pos) = response.interact_pointer_pos()
+        {
+            let geo_pos = projection.unproject(pointer_pos);
+            if let Some(last_line) = self.polylines.last_mut()
+                && response.ctx.input(|i| i.modifiers.shift)
+            {
+                last_line.0.push(geo_pos);
+            } else {
+                // No polylines exist yet, so create a new one.
+                let geo_pos2 = projection.unproject(pointer_pos + egui::vec2(1.0, 0.0));
+                self.polylines.push(Polyline(vec![geo_pos, geo_pos2]));
             }
         }
 
@@ -250,13 +239,12 @@ impl DrawingLayer {
             self.polylines.push(Polyline(Vec::new()));
         }
 
-        if response.dragged() {
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
-                if let Some(last_line) = self.polylines.last_mut() {
-                    let geo_pos = projection.unproject(pointer_pos);
-                    last_line.0.push(geo_pos);
-                }
-            }
+        if response.dragged()
+            && let Some(pointer_pos) = response.interact_pointer_pos()
+            && let Some(last_line) = self.polylines.last_mut()
+        {
+            let geo_pos = projection.unproject(pointer_pos);
+            last_line.0.push(geo_pos);
         }
 
         // When drawing, we consume all interactions over the map,
@@ -269,10 +257,10 @@ impl DrawingLayer {
             response.ctx.set_cursor_icon(egui::CursorIcon::NotAllowed);
         }
 
-        if response.dragged() || response.clicked() {
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
-                self.erase_at(pointer_pos, projection);
-            }
+        if (response.dragged() || response.clicked())
+            && let Some(pointer_pos) = response.interact_pointer_pos()
+        {
+            self.erase_at(pointer_pos, projection);
         }
         response.hovered()
     }

@@ -48,7 +48,7 @@ pub(crate) mod serde_color32 {
         D: Deserializer<'de>,
     {
         let s = <String as Deserialize>::deserialize(deserializer)?;
-        Color32::from_hex(&s).map_err(|err| serde::de::Error::custom(format!("{:?}", err)))
+        Color32::from_hex(&s).map_err(|err| serde::de::Error::custom(format!("{err:?}")))
     }
 }
 

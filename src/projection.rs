@@ -29,6 +29,7 @@ impl MapProjection {
     }
 
     /// Projects a geographical coordinate to a screen coordinate.
+    #[must_use] 
     pub fn project(&self, geo_pos: GeoPos) -> Pos2 {
         let center_x = lon_to_x(self.center_lon, self.zoom);
         let center_y = lat_to_y(self.center_lat, self.zoom);
@@ -36,24 +37,25 @@ impl MapProjection {
         let tile_x = lon_to_x(geo_pos.lon, self.zoom);
         let tile_y = lat_to_y(geo_pos.lat, self.zoom);
 
-        let dx = (tile_x - center_x) * TILE_SIZE as f64;
-        let dy = (tile_y - center_y) * TILE_SIZE as f64;
+        let dx = (tile_x - center_x) * f64::from(TILE_SIZE);
+        let dy = (tile_y - center_y) * f64::from(TILE_SIZE);
 
         let widget_center = self.widget_rect.center();
         widget_center + vec2(dx as f32, dy as f32)
     }
 
     /// Un-projects a screen coordinate to a geographical coordinate.
+    #[must_use] 
     pub fn unproject(&self, screen_pos: Pos2) -> GeoPos {
         let rel_pos = screen_pos - self.widget_rect.min;
-        let widget_center_x = self.widget_rect.width() as f64 / 2.0;
-        let widget_center_y = self.widget_rect.height() as f64 / 2.0;
+        let widget_center_x = f64::from(self.widget_rect.width()) / 2.0;
+        let widget_center_y = f64::from(self.widget_rect.height()) / 2.0;
 
         let center_x = lon_to_x(self.center_lon, self.zoom);
         let center_y = lat_to_y(self.center_lat, self.zoom);
 
-        let target_x = center_x + (rel_pos.x as f64 - widget_center_x) / TILE_SIZE as f64;
-        let target_y = center_y + (rel_pos.y as f64 - widget_center_y) / TILE_SIZE as f64;
+        let target_x = center_x + (f64::from(rel_pos.x) - widget_center_x) / f64::from(TILE_SIZE);
+        let target_y = center_y + (f64::from(rel_pos.y) - widget_center_y) / f64::from(TILE_SIZE);
 
         GeoPos {
             lon: x_to_lon(target_x, self.zoom),

@@ -78,6 +78,7 @@ pub enum TextLayerMode {
 /// Layer implementation that allows placing text on the map.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct TextLayer {
     texts: Vec<Text>,
 
@@ -97,17 +98,6 @@ pub struct TextLayer {
     dragged_text_index: Option<usize>,
 }
 
-impl Default for TextLayer {
-    fn default() -> Self {
-        Self {
-            texts: Vec::new(),
-            mode: TextLayerMode::default(),
-            new_text_properties: Text::default(),
-            editing: None,
-            dragged_text_index: None,
-        }
-    }
-}
 
 impl TextLayer {
     /// Starts editing an existing text element.
@@ -147,7 +137,7 @@ impl TextLayer {
         self.editing = None;
     }
 
-    /// Serializes the layer to a GeoJSON `FeatureCollection`.
+    /// Serializes the layer to a `GeoJSON` `FeatureCollection`.
     #[cfg(feature = "geojson")]
     pub fn to_geojson_str(&self) -> Result<String, serde_json::Error> {
         let features: Vec<geojson::Feature> = self
@@ -164,13 +154,12 @@ impl TextLayer {
         serde_json::to_string(&feature_collection)
     }
 
-    /// Deserializes a GeoJSON `FeatureCollection` and adds the features to the layer.
+    /// Deserializes a `GeoJSON` `FeatureCollection` and adds the features to the layer.
     #[cfg(feature = "geojson")]
     pub fn from_geojson_str(&mut self, s: &str) -> Result<(), serde_json::Error> {
         let feature_collection: geojson::FeatureCollection = serde_json::from_str(s)?;
         let new_texts: Vec<Text> = feature_collection
             .features
-            .into_iter()
             .into_iter()
             .filter_map(|f| Text::try_from(f).ok())
             .collect();
@@ -185,21 +174,17 @@ impl TextLayer {
             return response.hovered();
         }
 
-        if response.drag_started() {
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
+        if response.drag_started()
+            && let Some(pointer_pos) = response.interact_pointer_pos() {
                 self.dragged_text_index = self.find_text_at(pointer_pos, projection, &response.ctx);
             }
-        }
 
-        if response.dragged() {
-            if let Some(text_index) = self.dragged_text_index {
-                if let Some(text) = self.texts.get_mut(text_index) {
-                    if let Some(pointer_pos) = response.interact_pointer_pos() {
+        if response.dragged()
+            && let Some(text_index) = self.dragged_text_index
+                && let Some(text) = self.texts.get_mut(text_index)
+                    && let Some(pointer_pos) = response.interact_pointer_pos() {
                         text.pos = projection.unproject(pointer_pos);
                     }
-                }
-            }
-        }
 
         if response.drag_stopped() {
             self.dragged_text_index = None;
@@ -303,7 +288,7 @@ impl TextLayer {
             TextSize::Relative(size_in_meters) => {
                 let p2 = projection.project(GeoPos {
                     lon: text.pos.lon
-                        + (size_in_meters as f64 / (111_320.0 * text.pos.lat.to_radians().cos())),
+                        + (f64::from(size_in_meters) / (111_320.0 * text.pos.lat.to_radians().cos())),
                     lat: text.pos.lat,
                 });
                 (p2.x - projection.project(text.pos).x).abs()

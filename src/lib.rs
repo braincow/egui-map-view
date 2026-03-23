@@ -52,7 +52,6 @@ use eframe::egui;
 use egui::{Color32, NumExt, Rect, Response, Sense, Ui, Vec2, Widget, pos2};
 use eyre::{Context, Result};
 use log::{debug, error};
-use once_cell::sync::Lazy;
 use poll_promise::Promise;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -70,7 +69,7 @@ pub const MIN_ZOOM: u8 = 0;
 pub const MAX_ZOOM: u8 = 19;
 
 // Reuse the reqwest client for all tile downloads by making it a static variable.
-static CLIENT: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
+static CLIENT: std::sync::LazyLock<reqwest::blocking::Client> = std::sync::LazyLock::new(|| {
     reqwest::blocking::Client::builder()
         .user_agent(format!(
             "{}/{}",
@@ -111,8 +110,8 @@ pub struct TileId {
 }
 
 impl TileId {
-    fn to_url(&self, config: &dyn MapConfig) -> String {
-        config.tile_url(self)
+    fn to_url(self, config: &dyn MapConfig) -> String {
+        config.tile_url(&self)
     }
 }
 
@@ -177,14 +176,11 @@ impl Map {
 
     /// Remove a layer from the map
     pub fn remove_layer(&mut self, key: &str) -> bool {
-        if self.layers.remove(key).is_some() {
-            true
-        } else {
-            false
-        }
+        self.layers.remove(key).is_some()
     }
 
     /// Get a reference to the layers.
+    #[must_use] 
     pub fn layers(&self) -> &BTreeMap<String, Box<dyn Layer>> {
         &self.layers
     }
@@ -195,6 +191,7 @@ impl Map {
     }
 
     /// Get a reference to a specific layer.
+    #[must_use] 
     pub fn layer<T: Layer>(&self, key: &str) -> Option<&T> {
         self.layers
             .get(key)
@@ -216,13 +213,13 @@ impl Map {
             let center_in_tiles_x = lon_to_x(self.center.lon, self.zoom);
             let center_in_tiles_y = lat_to_y(self.center.lat, self.zoom);
 
-            let mut new_center_x = center_in_tiles_x - (delta.x as f64 / TILE_SIZE as f64);
-            let mut new_center_y = center_in_tiles_y - (delta.y as f64 / TILE_SIZE as f64);
+            let mut new_center_x = center_in_tiles_x - (f64::from(delta.x) / f64::from(TILE_SIZE));
+            let mut new_center_y = center_in_tiles_y - (f64::from(delta.y) / f64::from(TILE_SIZE));
 
             // Clamp the new center to the map boundaries.
-            let world_size_in_tiles = 2.0_f64.powi(self.zoom as i32);
-            let view_size_in_tiles_x = rect.width() as f64 / TILE_SIZE as f64;
-            let view_size_in_tiles_y = rect.height() as f64 / TILE_SIZE as f64;
+            let world_size_in_tiles = 2.0_f64.powi(i32::from(self.zoom));
+            let view_size_in_tiles_x = f64::from(rect.width()) / f64::from(TILE_SIZE);
+            let view_size_in_tiles_y = f64::from(rect.height()) / f64::from(TILE_SIZE);
 
             let min_center_x = view_size_in_tiles_x / 2.0;
             let max_center_x = world_size_in_tiles - view_size_in_tiles_x / 2.0;
@@ -249,8 +246,8 @@ impl Map {
         }
 
         // Handle double-click to zoom and center
-        if response.double_clicked() {
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
+        if response.double_clicked()
+            && let Some(pointer_pos) = response.interact_pointer_pos() {
                 let new_zoom = (self.zoom + 1).clamp(MIN_ZOOM, MAX_ZOOM);
 
                 if new_zoom != self.zoom {
@@ -258,13 +255,13 @@ impl Map {
                     let mouse_rel = pointer_pos - rect.min;
                     let center_x = lon_to_x(self.center.lon, self.zoom);
                     let center_y = lat_to_y(self.center.lat, self.zoom);
-                    let widget_center_x = rect.width() as f64 / 2.0;
-                    let widget_center_y = rect.height() as f64 / 2.0;
+                    let widget_center_x = f64::from(rect.width()) / 2.0;
+                    let widget_center_y = f64::from(rect.height()) / 2.0;
 
                     let target_x =
-                        center_x + (mouse_rel.x as f64 - widget_center_x) / TILE_SIZE as f64;
+                        center_x + (f64::from(mouse_rel.x) - widget_center_x) / f64::from(TILE_SIZE);
                     let target_y =
-                        center_y + (mouse_rel.y as f64 - widget_center_y) / TILE_SIZE as f64;
+                        center_y + (f64::from(mouse_rel.y) - widget_center_y) / f64::from(TILE_SIZE);
 
                     let new_center_lon = x_to_lon(target_x, self.zoom);
                     let new_center_lat = y_to_lat(target_y, self.zoom);
@@ -274,35 +271,34 @@ impl Map {
                     self.center = (new_center_lon, new_center_lat).into();
                 }
             }
-        }
 
         // Handle scroll-to-zoom
-        if response.hovered() {
-            if let Some(mouse_pos) = response.hover_pos() {
+        if response.hovered()
+            && let Some(mouse_pos) = response.hover_pos() {
                 let mouse_rel = mouse_pos - rect.min;
 
                 // Determine the geo-coordinate under the mouse cursor.
                 let center_x = lon_to_x(self.center.lon, self.zoom);
                 let center_y = lat_to_y(self.center.lat, self.zoom);
-                let widget_center_x = rect.width() as f64 / 2.0;
-                let widget_center_y = rect.height() as f64 / 2.0;
+                let widget_center_x = f64::from(rect.width()) / 2.0;
+                let widget_center_y = f64::from(rect.height()) / 2.0;
 
-                let target_x = center_x + (mouse_rel.x as f64 - widget_center_x) / TILE_SIZE as f64;
-                let target_y = center_y + (mouse_rel.y as f64 - widget_center_y) / TILE_SIZE as f64;
+                let target_x = center_x + (f64::from(mouse_rel.x) - widget_center_x) / f64::from(TILE_SIZE);
+                let target_y = center_y + (f64::from(mouse_rel.y) - widget_center_y) / f64::from(TILE_SIZE);
 
                 let scroll = ui.input(|i| i.raw_scroll_delta.y);
                 if scroll != 0.0 {
                     let old_zoom = self.zoom;
-                    let mut new_zoom = (self.zoom as i32 + scroll.signum() as i32)
-                        .clamp(MIN_ZOOM as i32, MAX_ZOOM as i32)
+                    let mut new_zoom = (i32::from(self.zoom) + scroll.signum() as i32)
+                        .clamp(i32::from(MIN_ZOOM), i32::from(MAX_ZOOM))
                         as u8;
 
                     // If we are zooming out, check if the new zoom level is valid.
                     if scroll < 0.0 {
-                        let world_pixel_size = 2.0_f64.powi(new_zoom as i32) * TILE_SIZE as f64;
+                        let world_pixel_size = 2.0_f64.powi(i32::from(new_zoom)) * f64::from(TILE_SIZE);
                         // If the world size would become smaller than the widget size, reject the zoom.
-                        if world_pixel_size < rect.width() as f64
-                            || world_pixel_size < rect.height() as f64
+                        if world_pixel_size < f64::from(rect.width())
+                            || world_pixel_size < f64::from(rect.height())
                         {
                             new_zoom = old_zoom; // Effectively cancel the zoom by reverting to the old value.
                         }
@@ -321,9 +317,9 @@ impl Map {
                         let new_target_y = lat_to_y(target_lat, new_zoom);
 
                         let new_center_x = new_target_x
-                            - (mouse_rel.x as f64 - widget_center_x) / TILE_SIZE as f64;
+                            - (f64::from(mouse_rel.x) - widget_center_x) / f64::from(TILE_SIZE);
                         let new_center_y = new_target_y
-                            - (mouse_rel.y as f64 - widget_center_y) / TILE_SIZE as f64;
+                            - (f64::from(mouse_rel.y) - widget_center_y) / f64::from(TILE_SIZE);
 
                         self.center = (
                             x_to_lon(new_center_x, new_zoom),
@@ -333,7 +329,6 @@ impl Map {
                     }
                 }
             }
-        }
     }
 
     /// Draws the attribution text.
@@ -385,23 +380,23 @@ impl Map {
 
 /// Converts longitude to the x-coordinate of a tile at a given zoom level.
 fn lon_to_x(lon: f64, zoom: u8) -> f64 {
-    (lon + 180.0) / 360.0 * (2.0_f64.powi(zoom as i32))
+    (lon + 180.0) / 360.0 * (2.0_f64.powi(i32::from(zoom)))
 }
 
 /// Converts latitude to the y-coordinate of a tile at a given zoom level.
 fn lat_to_y(lat: f64, zoom: u8) -> f64 {
     (1.0 - lat.to_radians().tan().asinh() / std::f64::consts::PI) / 2.0
-        * (2.0_f64.powi(zoom as i32))
+        * (2.0_f64.powi(i32::from(zoom)))
 }
 
 /// Converts the x-coordinate of a tile to longitude at a given zoom level.
 fn x_to_lon(x: f64, zoom: u8) -> f64 {
-    x / (2.0_f64.powi(zoom as i32)) * 360.0 - 180.0
+    x / (2.0_f64.powi(i32::from(zoom))) * 360.0 - 180.0
 }
 
 /// Converts the y-coordinate of a tile to latitude at a given zoom level.
 fn y_to_lat(y: f64, zoom: u8) -> f64 {
-    let n = std::f64::consts::PI - 2.0 * std::f64::consts::PI * y / (2.0_f64.powi(zoom as i32));
+    let n = std::f64::consts::PI - 2.0 * std::f64::consts::PI * y / (2.0_f64.powi(i32::from(zoom)));
     n.sinh().atan().to_degrees()
 }
 
@@ -414,7 +409,7 @@ pub(crate) fn draw_map(
 ) {
     let visible_tiles: Vec<_> = visible_tiles(projection).collect();
     for (tile_id, tile_pos) in visible_tiles {
-        load_tile(tiles, config, &painter.ctx(), tile_id);
+        load_tile(tiles, config, painter.ctx(), tile_id);
         draw_tile(tiles, painter, &tile_id, tile_pos, Color32::WHITE);
     }
 }
@@ -429,10 +424,10 @@ pub(crate) fn visible_tiles(
     let widget_center_x = projection.widget_rect.width() / 2.0;
     let widget_center_y = projection.widget_rect.height() / 2.0;
 
-    let x_min = (center_x - widget_center_x as f64 / TILE_SIZE as f64).floor() as i32;
-    let y_min = (center_y - widget_center_y as f64 / TILE_SIZE as f64).floor() as i32;
-    let x_max = (center_x + widget_center_x as f64 / TILE_SIZE as f64).ceil() as i32;
-    let y_max = (center_y + widget_center_y as f64 / TILE_SIZE as f64).ceil() as i32;
+    let x_min = (center_x - f64::from(widget_center_x) / f64::from(TILE_SIZE)).floor() as i32;
+    let y_min = (center_y - f64::from(widget_center_y) / f64::from(TILE_SIZE)).floor() as i32;
+    let x_max = (center_x + f64::from(widget_center_x) / f64::from(TILE_SIZE)).ceil() as i32;
+    let y_max = (center_y + f64::from(widget_center_y) / f64::from(TILE_SIZE)).ceil() as i32;
 
     let zoom = projection.zoom;
     let rect_min = projection.widget_rect.min;
@@ -443,8 +438,8 @@ pub(crate) fn visible_tiles(
                 x: x as u32,
                 y: y as u32,
             };
-            let screen_x = widget_center_x + (x as f64 - center_x) as f32 * TILE_SIZE as f32;
-            let screen_y = widget_center_y + (y as f64 - center_y) as f32 * TILE_SIZE as f32;
+            let screen_x = widget_center_x + (f64::from(x) - center_x) as f32 * TILE_SIZE as f32;
+            let screen_y = widget_center_y + (f64::from(y) - center_y) as f32 * TILE_SIZE as f32;
             let tile_pos = rect_min + Vec2::new(screen_x, screen_y);
             (tile_id, tile_pos)
         })
@@ -489,8 +484,8 @@ pub(crate) fn load_tile(
     // If the tile is loading, check if the promise is ready and update the state.
     // This is done before matching on the state, so that we can immediately draw
     // the tile if it has just finished loading.
-    if let Tile::Loading(promise) = tile_state {
-        if let Some(result) = promise.ready() {
+    if let Tile::Loading(promise) = tile_state
+        && let Some(result) = promise.ready() {
             match result {
                 Ok(color_image) => {
                     let texture = ctx.load_texture(
@@ -501,12 +496,11 @@ pub(crate) fn load_tile(
                     *tile_state = Tile::Loaded(texture);
                 }
                 Err(e) => {
-                    error!("{:?}", e);
+                    error!("{e:?}");
                     *tile_state = Tile::Failed(e.clone());
                 }
             }
         }
-    }
 }
 
 /// Draws a single map tile.
@@ -571,7 +565,7 @@ pub(crate) fn draw_tile(
             );
 
             // Log the error message
-            error!("Failed to load tile: {:?}", e);
+            error!("Failed to load tile: {e:?}");
         }
         Tile::Unknown => {
             // Draw a gray background and a border for the placeholder.
@@ -592,7 +586,7 @@ pub(crate) fn draw_tile(
                 Color32::RED,
             );
 
-            error!("Tile state not found for {:?}", tile_id);
+            error!("Tile state not found for {tile_id:?}");
         }
     }
 }
