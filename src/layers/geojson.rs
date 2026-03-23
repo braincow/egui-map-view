@@ -5,7 +5,7 @@ use super::drawing::Polyline;
 use super::text::{Text, TextSize};
 use crate::projection::GeoPos;
 use egui::{Color32, Stroke};
-use geojson::{Feature, Geometry, Value};
+use geojson::{Feature, Geometry, GeometryValue};
 use serde_json::{Map, Value as JsonValue};
 
 /// Adds crate name and version to the feature properties.
@@ -64,22 +64,22 @@ impl From<Area> for Feature {
 
         match area.shape {
             AreaShape::Polygon(points) => {
-                let polygon_points: Vec<Vec<Vec<f64>>> = vec![
+                let polygon_points: Vec<Vec<geojson::Position>> = vec![
                     points
                         .iter()
                         // GeoJSON polygons must be closed, so the first and last points must be the same.
                         .chain(points.first())
-                        .map(|gp| (*gp).into())
+                        .map(|gp| geojson::Position::from(vec![gp.lon, gp.lat]))
                         .collect(),
                 ];
-                feature.geometry = Some(Geometry::new(Value::Polygon(polygon_points)));
+                feature.geometry = Some(Geometry::new(GeometryValue::Polygon { coordinates: polygon_points }));
             }
             AreaShape::Circle {
                 center,
                 radius,
                 points,
             } => {
-                let point = Geometry::new(Value::Point(center.into()));
+                let point = Geometry::new(GeometryValue::Point { coordinates: geojson::Position::from(vec![center.lon, center.lat]) });
                 feature.geometry = Some(point);
                 properties.insert("radius".to_string(), JsonValue::from(radius));
                 if let Some(p) = points {
@@ -99,12 +99,12 @@ impl TryFrom<Feature> for Area {
     fn try_from(feature: Feature) -> Result<Self, Self::Error> {
         let shape = if let Some(geometry) = &feature.geometry {
             match &geometry.value {
-                Value::Polygon(points) => {
+                GeometryValue::Polygon { coordinates: points } => {
                     let mut polygon_points: Vec<GeoPos> = points
                         .first()
                         .ok_or("Polygon has no rings")?
                         .iter()
-                        .map(|pos| pos.clone().into())
+                        .map(|pos| GeoPos { lon: pos[0], lat: pos[1] })
                         .collect();
 
                     // Remove the closing point, as AreaShape::Polygon doesn't expect it.
@@ -114,12 +114,12 @@ impl TryFrom<Feature> for Area {
 
                     Some(AreaShape::Polygon(polygon_points))
                 }
-                Value::Point(point) => {
+                GeometryValue::Point { coordinates: point } => {
                     let properties = feature
                         .properties
                         .as_ref()
                         .ok_or("Feature has no properties")?;
-                    let center: GeoPos = point.clone().into();
+                    let center = GeoPos { lon: point[0], lat: point[1] };
                     let radius = properties
                         .get("radius")
                         .and_then(serde_json::Value::as_f64)
@@ -180,8 +180,8 @@ impl From<Polyline> for Feature {
         let mut properties = Map::new();
         add_version_to_properties(&mut properties);
         feature.properties = Some(properties);
-        let line_string: Vec<Vec<f64>> = polyline.0.iter().map(|gp| (*gp).into()).collect();
-        feature.geometry = Some(Geometry::new(Value::LineString(line_string)));
+        let line_string: Vec<geojson::Position> = polyline.0.iter().map(|gp| geojson::Position::from(vec![gp.lon, gp.lat])).collect();
+        feature.geometry = Some(Geometry::new(GeometryValue::LineString { coordinates: line_string }));
         feature
     }
 }
@@ -193,7 +193,7 @@ impl TryFrom<Feature> for Polyline {
         if let Some(geometry) = feature.geometry
             && let Value::LineString(line_string) = geometry.value {
                 return Ok(Polyline(
-                    line_string.iter().map(|pos| pos.clone().into()).collect(),
+                    line_string.iter().map(|pos| GeoPos { lon: pos[0], lat: pos[1] }).collect(),
                 ));
             }
         if let Some(properties) = &feature.properties {
@@ -208,7 +208,7 @@ impl From<Text> for Feature {
         let mut feature = Feature::default();
         let mut properties = Map::new();
         add_version_to_properties(&mut properties);
-        let point = Geometry::new(Value::Point(text.pos.into()));
+        let point = Geometry::new(GeometryValue::Point { coordinates: geojson::Position::from(vec![text.pos.lon, text.pos.lat]) });
         feature.geometry = Some(point);
         properties.insert("text".to_string(), JsonValue::String(text.text));
         properties.insert("color".to_string(), JsonValue::String(text.color.to_hex()));
@@ -245,8 +245,8 @@ impl TryFrom<Feature> for Text {
     fn try_from(feature: Feature) -> Result<Self, Self::Error> {
         let mut text = Text::default();
         if let Some(geometry) = feature.geometry {
-            if let Value::Point(point) = geometry.value {
-                text.pos = point.into();
+            if let GeometryValue::Point { coordinates: point } = geometry.value {
+                text.pos = GeoPos { lon: point[0], lat: point[1] };
             } else {
                 return Err("Feature is not a Point".to_string());
             }
