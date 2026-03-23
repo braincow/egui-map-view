@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-03-23
+
+### Added
+
+- Added SVG image support with `SvgLayer` that can be used to place SVG images on the map (#48)
+
+### Changed
+
+- Code quality improvements (#50)
+- Updated Cargo dependencies (#51)
+
 ## [0.3.2] - 2026-02-19
 
 ### Changed
