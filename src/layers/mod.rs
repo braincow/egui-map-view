@@ -17,6 +17,10 @@ pub mod drawing;
 #[cfg(feature = "text-layer")]
 pub mod text;
 
+/// SVG layer
+#[cfg(feature = "svg-layer")]
+pub mod svg;
+
 /// Area layer
 #[cfg(feature = "area-layer")]
 pub mod area;
