@@ -177,11 +177,7 @@ impl Map {
 
     /// Remove a layer from the map
     pub fn remove_layer(&mut self, key: &str) -> bool {
-        if self.layers.remove(key).is_some() {
-            true
-        } else {
-            false
-        }
+        self.layers.remove(key).is_some()
     }
 
     /// Get a reference to the layers.
@@ -249,8 +245,8 @@ impl Map {
         }
 
         // Handle double-click to zoom and center
-        if response.double_clicked() {
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
+        if response.double_clicked()
+            && let Some(pointer_pos) = response.interact_pointer_pos() {
                 let new_zoom = (self.zoom + 1).clamp(MIN_ZOOM, MAX_ZOOM);
 
                 if new_zoom != self.zoom {
@@ -274,11 +270,10 @@ impl Map {
                     self.center = (new_center_lon, new_center_lat).into();
                 }
             }
-        }
 
         // Handle scroll-to-zoom
-        if response.hovered() {
-            if let Some(mouse_pos) = response.hover_pos() {
+        if response.hovered()
+            && let Some(mouse_pos) = response.hover_pos() {
                 let mouse_rel = mouse_pos - rect.min;
 
                 // Determine the geo-coordinate under the mouse cursor.
@@ -333,7 +328,6 @@ impl Map {
                     }
                 }
             }
-        }
     }
 
     /// Draws the attribution text.
@@ -414,7 +408,7 @@ pub(crate) fn draw_map(
 ) {
     let visible_tiles: Vec<_> = visible_tiles(projection).collect();
     for (tile_id, tile_pos) in visible_tiles {
-        load_tile(tiles, config, &painter.ctx(), tile_id);
+        load_tile(tiles, config, painter.ctx(), tile_id);
         draw_tile(tiles, painter, &tile_id, tile_pos, Color32::WHITE);
     }
 }
@@ -489,8 +483,8 @@ pub(crate) fn load_tile(
     // If the tile is loading, check if the promise is ready and update the state.
     // This is done before matching on the state, so that we can immediately draw
     // the tile if it has just finished loading.
-    if let Tile::Loading(promise) = tile_state {
-        if let Some(result) = promise.ready() {
+    if let Tile::Loading(promise) = tile_state
+        && let Some(result) = promise.ready() {
             match result {
                 Ok(color_image) => {
                     let texture = ctx.load_texture(
@@ -506,7 +500,6 @@ pub(crate) fn load_tile(
                 }
             }
         }
-    }
 }
 
 /// Draws a single map tile.

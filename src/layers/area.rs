@@ -176,7 +176,6 @@ impl AreaLayer {
         let new_areas: Vec<Area> = feature_collection
             .features
             .into_iter()
-            .into_iter()
             .filter_map(|f| Area::try_from(f).ok())
             .collect();
         self.areas.extend(new_areas);
@@ -184,15 +183,14 @@ impl AreaLayer {
     }
 
     fn handle_modify_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
-        if response.double_clicked() {
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
+        if response.double_clicked()
+            && let Some(pointer_pos) = response.interact_pointer_pos() {
                 // TODO: This only works for polygons.
-                if self.find_node_at(pointer_pos, projection).is_none() {
-                    if let Some((area_idx, node_idx)) =
+                if self.find_node_at(pointer_pos, projection).is_none()
+                    && let Some((area_idx, node_idx)) =
                         self.find_line_segment_at(pointer_pos, projection)
-                    {
-                        if let Some(area) = self.areas.get_mut(area_idx) {
-                            if let AreaShape::Polygon(points) = &mut area.shape {
+                        && let Some(area) = self.areas.get_mut(area_idx)
+                            && let AreaShape::Polygon(points) = &mut area.shape {
                                 let p1_screen = projection.project(points[node_idx]);
                                 let p2_screen =
                                     projection.project(points[(node_idx + 1) % points.len()]);
@@ -208,48 +206,40 @@ impl AreaLayer {
                                 // This interaction is fully handled, so we can return.
                                 return response.hovered();
                             }
-                        }
-                    }
-                }
             }
-        }
 
-        if response.drag_started() {
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
+        if response.drag_started()
+            && let Some(pointer_pos) = response.interact_pointer_pos() {
                 self.dragged_object = self.find_object_at(pointer_pos, projection);
             }
-        }
 
-        if response.dragged() {
-            if let Some(dragged_object) = self.dragged_object.clone() {
-                if let Some(pointer_pos) = response.interact_pointer_pos() {
+        if response.dragged()
+            && let Some(dragged_object) = self.dragged_object.clone()
+                && let Some(pointer_pos) = response.interact_pointer_pos() {
                     match dragged_object {
                         DraggedObject::PolygonNode {
                             area_index,
                             node_index,
                         } => {
-                            if self.is_move_valid(area_index, node_index, pointer_pos, projection) {
-                                if let Some(area) = self.areas.get_mut(area_index) {
+                            if self.is_move_valid(area_index, node_index, pointer_pos, projection)
+                                && let Some(area) = self.areas.get_mut(area_index) {
                                     let mut revert_info = None;
-                                    if let AreaShape::Polygon(points) = &mut area.shape {
-                                        if let Some(node) = points.get_mut(node_index) {
+                                    if let AreaShape::Polygon(points) = &mut area.shape
+                                        && let Some(node) = points.get_mut(node_index) {
                                             let old_pos = *node;
                                             *node = projection.unproject(pointer_pos);
                                             revert_info = Some(old_pos);
                                         }
-                                    }
 
-                                    if let Some(old_pos) = revert_info {
-                                        if !area.can_triangulate(projection) {
+                                    if let Some(old_pos) = revert_info
+                                        && !area.can_triangulate(projection) {
                                             warn!("Triangulation failed, cancelling drag");
                                             self.dragged_object = None;
                                             if let AreaShape::Polygon(points) = &mut area.shape {
                                                 points[node_index] = old_pos;
                                             }
                                         }
-                                    }
                                 }
-                            }
                         }
                         DraggedObject::CircleCenter { area_index } => {
                             if let Some(area) = self.areas.get_mut(area_index) {
@@ -259,15 +249,14 @@ impl AreaLayer {
                                     *center = projection.unproject(pointer_pos);
                                 }
 
-                                if let Some(old_center) = revert_center {
-                                    if !area.can_triangulate(projection) {
+                                if let Some(old_center) = revert_center
+                                    && !area.can_triangulate(projection) {
                                         warn!("Triangulation failed, cancelling drag");
                                         self.dragged_object = None;
                                         if let AreaShape::Circle { center, .. } = &mut area.shape {
                                             *center = old_center;
                                         }
                                     }
-                                }
                             }
                         }
                         DraggedObject::CircleRadius { area_index } => {
@@ -295,21 +284,18 @@ impl AreaLayer {
                                     *radius = (distance_lon.powi(2) + distance_lat.powi(2)).sqrt();
                                 }
 
-                                if let Some(old_radius) = revert_radius {
-                                    if !area.can_triangulate(projection) {
+                                if let Some(old_radius) = revert_radius
+                                    && !area.can_triangulate(projection) {
                                         warn!("Triangulation failed, cancelling drag");
                                         self.dragged_object = None;
                                         if let AreaShape::Circle { radius, .. } = &mut area.shape {
                                             *radius = old_radius;
                                         }
                                     }
-                                }
                             }
                         }
                     }
                 }
-            }
-        }
 
         if response.drag_stopped() {
             self.dragged_object = None;
@@ -319,11 +305,10 @@ impl AreaLayer {
 
         if is_dragging {
             response.ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
-        } else if let Some(pointer_pos) = response.hover_pos() {
-            if self.find_object_at(pointer_pos, projection).is_some() {
+        } else if let Some(pointer_pos) = response.hover_pos()
+            && self.find_object_at(pointer_pos, projection).is_some() {
                 response.ctx.set_cursor_icon(egui::CursorIcon::Grab);
             }
-        }
 
         is_dragging || response.hovered()
     }
@@ -464,18 +449,16 @@ impl AreaLayer {
             let edge_to_check = (screen_points[p1_idx], screen_points[p2_idx]);
 
             // Check against the first new edge.
-            if p1_idx != prev_node_idx && p2_idx != prev_node_idx {
-                if segments_intersect(new_edge1.0, new_edge1.1, edge_to_check.0, edge_to_check.1) {
+            if p1_idx != prev_node_idx && p2_idx != prev_node_idx
+                && segments_intersect(new_edge1.0, new_edge1.1, edge_to_check.0, edge_to_check.1) {
                     return false;
                 }
-            }
 
             // Check against the second new edge.
-            if p1_idx != next_node_idx && p2_idx != next_node_idx {
-                if segments_intersect(new_edge2.0, new_edge2.1, edge_to_check.0, edge_to_check.1) {
+            if p1_idx != next_node_idx && p2_idx != next_node_idx
+                && segments_intersect(new_edge2.0, new_edge2.1, edge_to_check.0, edge_to_check.1) {
                     return false;
                 }
-            }
         }
 
         true

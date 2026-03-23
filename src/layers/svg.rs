@@ -180,13 +180,12 @@ impl Layer for SvgLayer {
         // Handle active dragging
         if let Some(index) = self.dragging_index {
             if response.dragged() {
-                if let Some(pointer_pos) = response.interact_pointer_pos() {
-                    if let Some(element) = self.elements.get_mut(index) {
+                if let Some(pointer_pos) = response.interact_pointer_pos()
+                    && let Some(element) = self.elements.get_mut(index) {
                         element.pos = projection.unproject(pointer_pos);
                         handled = true;
                         response.ctx.request_repaint();
                     }
-                }
             } else {
                 self.dragging_index = None;
             }
