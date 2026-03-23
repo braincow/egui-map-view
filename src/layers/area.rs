@@ -776,10 +776,7 @@ mod tests {
     fn test_can_triangulate_insufficient_points() {
         let projection = dummy_projection();
         let area = Area {
-            shape: AreaShape::Polygon(vec![
-                (0.0, 0.0).into(),
-                (10.0, 0.0).into(),
-            ]),
+            shape: AreaShape::Polygon(vec![(0.0, 0.0).into(), (10.0, 0.0).into()]),
             stroke: Default::default(),
             fill: Default::default(),
         };

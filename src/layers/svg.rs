@@ -5,6 +5,8 @@ use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Painter, PointerButton, Pos2, Response};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 /// An SVG element on the map.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -65,9 +67,14 @@ impl SvgElement {
     }
 
     /// Creates a new SVG element from x (longitude) and y (latitude) coordinates.
-    pub fn from_xy(x: f64, y: f64, text: impl Into<String>, metadata: impl Into<String>) -> Self {
+    pub fn from_xy(
+        lon: f64,
+        lat: f64,
+        text: impl Into<String>,
+        metadata: impl Into<String>,
+    ) -> Self {
         Self {
-            pos: GeoPos { lon: x, lat: y },
+            pos: GeoPos { lon, lat },
             text: text.into(),
             metadata: metadata.into(),
             scalable: false,
@@ -285,8 +292,6 @@ impl Layer for SvgLayer {
 }
 
 fn rust_hash(s: &str) -> u64 {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
     let mut hasher = DefaultHasher::new();
     s.hash(&mut hasher);
     hasher.finish()

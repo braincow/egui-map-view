@@ -2,9 +2,9 @@
 
 use eframe::egui;
 use egui_map_view::{
+    Map,
     config::OpenStreetMapConfig,
     layers::svg::{SvgElement, SvgLayer},
-    Map,
 };
 
 fn main() -> eframe::Result {
@@ -55,14 +55,24 @@ impl Default for MyApp {
 
         // London (approx -0.12, 51.50)
         svg_layer.add_element(
-            SvgElement::from_xy(-0.12, 51.50, blue_square, "London Blue Square (Non-clickable)")
-                .with_clickable(false),
+            SvgElement::from_xy(
+                -0.12,
+                51.50,
+                blue_square,
+                "London Blue Square (Non-clickable)",
+            )
+            .with_clickable(false),
         );
 
         // Stockholm (approx 18.06, 59.32)
         svg_layer.add_element(
-            SvgElement::from_xy(18.06, 59.32, green_triangle, "Stockholm Green Triangle (Draggable)")
-                .with_draggable(true),
+            SvgElement::from_xy(
+                18.06,
+                59.32,
+                green_triangle,
+                "Stockholm Green Triangle (Draggable)",
+            )
+            .with_draggable(true),
         );
 
         // Add the layer to the map
