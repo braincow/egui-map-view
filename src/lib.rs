@@ -338,11 +338,6 @@ impl Map {
 
     /// Draws the attribution text.
     fn draw_attribution(&self, ui: &mut Ui, rect: &Rect) {
-        // Check if the widget is scrolled out of view or clipped.
-        if !ui.is_rect_visible(*rect) {
-            return;
-        }
-
         if let Some(attribution) = self.config.attribution() {
             let (_text_color, bg_color) = if ui.visuals().dark_mode {
                 (Color32::from_gray(230), Color32::from_black_alpha(150))
@@ -355,26 +350,35 @@ impl Map {
                 .fill(bg_color)
                 .corner_radius(3.0); // Round the edges
 
-            egui::Area::new(ui.id().with("attribution"))
-                // pivot(egui::Align2::LEFT_BOTTOM) tells the Area that its position should be
-                //  calculated from its bottom-left corner, not its top-left.
-                .pivot(egui::Align2::LEFT_BOTTOM)
-                // fixed_pos(rect.left_bottom() + egui::vec2(5.0, -5.0)) now positions the Area's
-                //  bottom-left corner at the map's bottom-left corner, with a small margin to bring
-                //  it nicely inside the map's bounds.
-                .fixed_pos(rect.left_bottom() + egui::vec2(5.0, -5.0))
-                .show(ui.ctx(), |ui| {
-                    frame.show(ui, |ui| {
-                        ui.style_mut().override_text_style = Some(egui::TextStyle::Small);
-                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend); // Don't wrap attribution text.
+            // We use a child UI instead of egui::Area to ensure the attribution
+            // stays on the same layer as the map widget. This fixes issues where
+            // the attribution would disappear when the map is inside a Window
+            // and the user interacts with it.
+            let attribution_pos = rect.left_bottom() + egui::vec2(5.0, -5.0);
 
-                        if let Some(url) = self.config.attribution_url() {
-                            ui.hyperlink_to(attribution, url);
-                        } else {
-                            ui.label(attribution);
-                        }
-                    });
+            // Allocate a small area for the attribution.
+            // We use a large enough width but it will be constrained by the content.
+            let mut child_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(Rect::from_min_size(
+                        attribution_pos - egui::vec2(0.0, 30.0),
+                        egui::vec2(rect.width() - 10.0, 30.0),
+                    ))
+                    .id_salt("attribution"),
+            );
+
+            child_ui.with_layout(egui::Layout::left_to_right(egui::Align::BOTTOM), |ui| {
+                frame.show(ui, |ui| {
+                    ui.style_mut().override_text_style = Some(egui::TextStyle::Small);
+                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend); // Don't wrap attribution text.
+
+                    if let Some(url) = self.config.attribution_url() {
+                        ui.hyperlink_to(attribution, url);
+                    } else {
+                        ui.label(attribution);
+                    }
                 });
+            });
         }
     }
 }
