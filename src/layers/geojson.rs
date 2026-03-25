@@ -1,6 +1,6 @@
 //! GeoJSON serialization and deserialization for layers.
 
-use super::area::{Area, AreaShape};
+use super::area::{Area, AreaShape, FillType};
 use super::drawing::Polyline;
 use super::text::{Text, TextSize};
 use crate::projection::GeoPos;
@@ -60,6 +60,14 @@ impl From<Area> for Feature {
         properties.insert(
             "fill_color".to_string(),
             JsonValue::String(area.fill.to_hex()),
+        );
+        properties.insert(
+            "fill_type".to_string(),
+            JsonValue::String(match area.fill_type {
+                FillType::None => "None",
+                FillType::Solid => "Solid",
+                FillType::Hatching => "Hatching",
+            }.to_string()),
         );
 
         match area.shape {
@@ -166,10 +174,21 @@ impl TryFrom<Feature> for Area {
                     }
         }
 
+        let fill_type = if let Some(properties) = &feature.properties {
+            match properties.get("fill_type").and_then(|v| v.as_str()) {
+                Some("None") => FillType::None,
+                Some("Hatching") => FillType::Hatching,
+                _ => FillType::Solid, // Default for backwards compatibility
+            }
+        } else {
+            FillType::Solid
+        };
+
         Ok(Area {
             shape,
             stroke,
             fill,
+            fill_type,
         })
     }
 }

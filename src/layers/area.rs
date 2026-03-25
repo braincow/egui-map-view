@@ -4,7 +4,7 @@
 //!
 //! ```no_run
 //! use eframe::egui;
-//! use egui_map_view::{Map, config::OpenStreetMapConfig, layers::{area::{Area, AreaLayer, AreaMode, AreaShape::Polygon}, Layer}, projection::GeoPos};
+//! use egui_map_view::{Map, config::OpenStreetMapConfig, layers::{area::{Area, AreaLayer, AreaMode, AreaShape::Polygon, FillType}, Layer}, projection::GeoPos};
 //! use egui::{Color32, Stroke};
 //!
 //! struct MyApp {
@@ -24,6 +24,7 @@
 //!         ]),
 //!         stroke: Stroke::new(2.0, Color32::from_rgb(255, 0, 0)),
 //!         fill: Color32::from_rgba_unmultiplied(255, 0, 0, 50),
+//!         fill_type: FillType::Solid,
 //!     });
 //!     area_layer.mode = AreaMode::Modify;
 //!
@@ -77,6 +78,18 @@ pub enum AreaShape {
     },
 }
 
+/// How the interior of an area is filled.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FillType {
+    /// No fill — only the outline is drawn.
+    None,
+    /// Solid color fill.
+    #[default]
+    Solid,
+    /// Diagonal hatching lines using the stroke style.
+    Hatching,
+}
+
 /// A polygon area on the map.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Area {
@@ -90,6 +103,10 @@ pub struct Area {
     /// The fill color of the polygon.
     #[serde(with = "serde_color32")]
     pub fill: Color32,
+
+    /// How the interior of the area is filled.
+    #[serde(default)]
+    pub fill_type: FillType,
 }
 
 /// Represents what part of an area is being dragged.
@@ -151,6 +168,17 @@ impl AreaLayer {
     /// Adds a new area to the layer.
     pub fn add_area(&mut self, area: Area) {
         self.areas.push(area);
+    }
+
+    /// Returns a reference to the areas in the layer.
+    #[must_use]
+    pub fn areas(&self) -> &Vec<Area> {
+        &self.areas
+    }
+
+    /// Returns a mutable reference to the areas in the layer.
+    pub fn areas_mut(&mut self) -> &mut Vec<Area> {
+        &mut self.areas
     }
 
     /// Serializes the layer to a `GeoJSON` `FeatureCollection`.
@@ -311,7 +339,11 @@ impl AreaLayer {
                 response.ctx.set_cursor_icon(egui::CursorIcon::Grab);
             }
 
-        is_dragging || response.hovered()
+        is_dragging
+            || (response.hovered()
+                && self
+                    .find_object_at(response.hover_pos().unwrap_or_default(), projection)
+                    .is_some())
     }
 
     fn find_object_at(
@@ -527,6 +559,84 @@ impl Area {
     }
 }
 
+/// Generates diagonal hatching line segments clipped to the given polygon.
+///
+/// `screen_points` are the polygon vertices in screen space (must be >= 3 points).
+/// `spacing` is the distance in pixels between parallel hatching lines.
+/// `angle` is the angle of the hatching lines in radians (0 = horizontal, PI/4 = 45° diagonal).
+///
+/// Returns a list of line segments `(start, end)` that lie inside the polygon.
+fn generate_hatching_lines(screen_points: &[Pos2], spacing: f32, angle: f32) -> Vec<(Pos2, Pos2)> {
+    if screen_points.len() < 3 || spacing <= 0.0 {
+        return Vec::new();
+    }
+
+    // Direction along the hatching lines and perpendicular to them.
+    let dir = egui::vec2(angle.cos(), angle.sin());
+    let perp = egui::vec2(-angle.sin(), angle.cos());
+
+    // Project all polygon points onto the perpendicular axis to find the sweep range.
+    let mut min_perp = f32::MAX;
+    let mut max_perp = f32::MIN;
+    for p in screen_points {
+        let d = p.to_vec2().dot(perp);
+        min_perp = min_perp.min(d);
+        max_perp = max_perp.max(d);
+    }
+
+    let n = screen_points.len();
+    let mut segments = Vec::new();
+
+    // Sweep parallel lines across the polygon.
+    let mut offset = min_perp + spacing;
+    while offset < max_perp {
+        // A point on the current sweep line: origin + offset along the perpendicular.
+        let line_origin = Pos2::ZERO + perp * offset;
+
+        // Find intersections of this sweep line with every polygon edge.
+        let mut t_values: Vec<f32> = Vec::new();
+        for i in 0..n {
+            let a = screen_points[i];
+            let b = screen_points[(i + 1) % n];
+            let edge = b - a;
+
+            // Solve: a + t_edge * edge = line_origin + t_line * dir
+            // Cross product form: (a - line_origin) × dir = t_edge * (edge × dir)
+            let denom = edge.x * dir.y - edge.y * dir.x;
+            if denom.abs() < 1e-9 {
+                continue; // Edge is parallel to the hatching line.
+            }
+
+            let diff = a - line_origin;
+            let t_edge = -(diff.x * dir.y - diff.y * dir.x) / denom;
+
+            if t_edge >= 0.0 && t_edge <= 1.0 {
+                // Compute t_line: the parameter along the sweep line direction.
+                let t_line = if dir.x.abs() > dir.y.abs() {
+                    (a.x - line_origin.x + t_edge * edge.x) / dir.x
+                } else {
+                    (a.y - line_origin.y + t_edge * edge.y) / dir.y
+                };
+                t_values.push(t_line);
+            }
+        }
+
+        // Sort intersections along the sweep line.
+        t_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Pair up intersections (even-odd rule) to get interior segments.
+        for pair in t_values.chunks_exact(2) {
+            let p1 = line_origin + dir * pair[0];
+            let p2 = line_origin + dir * pair[1];
+            segments.push((p1, p2));
+        }
+
+        offset += spacing;
+    }
+
+    segments
+}
+
 impl Layer for AreaLayer {
     fn as_any(&self) -> &dyn Any {
         self
@@ -559,29 +669,40 @@ impl Layer for AreaLayer {
                 });
                 painter.add(path_shape);
 
-                // Triangulate for the fill.
-                let flat_points: Vec<f64> = screen_points
-                    .iter()
-                    .flat_map(|p| [f64::from(p.x), f64::from(p.y)])
-                    .collect();
-                match earcutr::earcut(&flat_points, &[], 2) {
-                    Ok(indices) => {
-                        let mesh = Mesh {
-                            vertices: screen_points
-                                .iter()
-                                .map(|p| egui::epaint::Vertex {
-                                    pos: *p,
-                                    uv: Default::default(),
-                                    color: area.fill,
-                                })
-                                .collect(),
-                            indices: indices.into_iter().map(|i| i as u32).collect(),
-                            ..Default::default()
-                        };
-                        painter.add(Shape::Mesh(mesh.into()));
+                match area.fill_type {
+                    FillType::None => { /* No fill */ }
+                    FillType::Solid => {
+                        // Triangulate for the fill.
+                        let flat_points: Vec<f64> = screen_points
+                            .iter()
+                            .flat_map(|p| [f64::from(p.x), f64::from(p.y)])
+                            .collect();
+                        match earcutr::earcut(&flat_points, &[], 2) {
+                            Ok(indices) => {
+                                let mesh = Mesh {
+                                    vertices: screen_points
+                                        .iter()
+                                        .map(|p| egui::epaint::Vertex {
+                                            pos: *p,
+                                            uv: Default::default(),
+                                            color: area.fill,
+                                        })
+                                        .collect(),
+                                    indices: indices.into_iter().map(|i| i as u32).collect(),
+                                    ..Default::default()
+                                };
+                                painter.add(Shape::Mesh(mesh.into()));
+                            }
+                            Err(e) => {
+                                warn!("Failed to triangulate area: {e:?}");
+                            }
+                        }
                     }
-                    Err(e) => {
-                        warn!("Failed to triangulate area: {e:?}");
+                    FillType::Hatching => {
+                        let segments = generate_hatching_lines(&screen_points, 8.0, std::f32::consts::FRAC_PI_4);
+                        for (a, b) in segments {
+                            painter.line_segment([a, b], area.stroke);
+                        }
                     }
                 }
             } else {
@@ -658,6 +779,7 @@ mod tests {
             ]),
             stroke: Default::default(),
             fill: Default::default(),
+            fill_type: Default::default(),
         });
 
         assert_eq!(layer.areas.len(), 1);
@@ -674,6 +796,7 @@ mod tests {
             },
             stroke: Default::default(),
             fill: Default::default(),
+            fill_type: Default::default(),
         };
 
         let points = area.get_points(&projection);
@@ -699,6 +822,7 @@ mod tests {
             shape: AreaShape::Polygon(vec![geo_pos]),
             stroke: Default::default(),
             fill: Default::default(),
+            fill_type: Default::default(),
         });
 
         // Position is exactly on the node
@@ -733,6 +857,7 @@ mod tests {
             shape: AreaShape::Polygon(vec![(0.0, 0.0).into()]),
             stroke: Stroke::new(1.0, Color32::RED),
             fill: Color32::BLUE,
+            fill_type: Default::default(),
         });
 
         let json = serde_json::to_string(&layer).unwrap();
@@ -753,6 +878,7 @@ mod tests {
             ]),
             stroke: Default::default(),
             fill: Default::default(),
+            fill_type: Default::default(),
         };
 
         assert!(area.can_triangulate(&projection));
@@ -765,6 +891,7 @@ mod tests {
             shape: AreaShape::Polygon(vec![(0.0, 0.0).into(), (10.0, 0.0).into()]),
             stroke: Default::default(),
             fill: Default::default(),
+            fill_type: Default::default(),
         };
 
         // Should return true as we don't consider < 3 points as a triangulation failure
@@ -787,6 +914,7 @@ mod tests {
                 ]),
                 stroke: Stroke::new(2.0, Color32::from_rgb(0, 0, 255)),
                 fill: Color32::from_rgba_unmultiplied(255, 0, 0, 128),
+                fill_type: Default::default(),
             });
 
             let geojson_str = layer.to_geojson_str().unwrap();
@@ -809,6 +937,7 @@ mod tests {
                 },
                 stroke: Default::default(),
                 fill: Default::default(),
+                fill_type: Default::default(),
             });
 
             let geojson_str = layer.to_geojson_str().unwrap();
@@ -832,6 +961,7 @@ mod tests {
             shape: AreaShape::Polygon(vec![p1, p2, projection.unproject(pos2(150.0, 200.0))]), // Triangle
             stroke: Default::default(),
             fill: Default::default(),
+            fill_type: Default::default(),
         });
 
         // Click exactly between p1 and p2
