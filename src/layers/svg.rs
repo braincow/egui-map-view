@@ -85,28 +85,28 @@ impl SvgElement {
     }
 
     /// Sets whether the SVG element is scalable.
-    #[must_use] 
+    #[must_use]
     pub fn with_scalable(mut self, scalable: bool) -> Self {
         self.scalable = scalable;
         self
     }
 
     /// Sets whether the SVG element is clickable.
-    #[must_use] 
+    #[must_use]
     pub fn with_clickable(mut self, clickable: bool) -> Self {
         self.clickable = clickable;
         self
     }
 
     /// Sets whether the SVG element is draggable.
-    #[must_use] 
+    #[must_use]
     pub fn with_draggable(mut self, draggable: bool) -> Self {
         self.draggable = draggable;
         self
     }
 
     /// Sets the anchor point of the SVG element.
-    #[must_use] 
+    #[must_use]
     pub fn with_anchor(mut self, anchor: Pos2) -> Self {
         self.anchor = anchor;
         self
@@ -185,11 +185,12 @@ impl Layer for SvgLayer {
         if let Some(index) = self.dragging_index {
             if response.dragged() {
                 if let Some(pointer_pos) = response.interact_pointer_pos()
-                    && let Some(element) = self.elements.get_mut(index) {
-                        element.pos = projection.unproject(pointer_pos);
-                        handled = true;
-                        response.ctx.request_repaint();
-                    }
+                    && let Some(element) = self.elements.get_mut(index)
+                {
+                    element.pos = projection.unproject(pointer_pos);
+                    handled = true;
+                    response.ctx.request_repaint();
+                }
             } else {
                 self.dragging_index = None;
             }

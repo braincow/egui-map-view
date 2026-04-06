@@ -63,11 +63,14 @@ impl From<Area> for Feature {
         );
         properties.insert(
             "fill_type".to_string(),
-            JsonValue::String(match area.fill_type {
-                FillType::None => "None",
-                FillType::Solid => "Solid",
-                FillType::Hatching => "Hatching",
-            }.to_string()),
+            JsonValue::String(
+                match area.fill_type {
+                    FillType::None => "None",
+                    FillType::Solid => "Solid",
+                    FillType::Hatching => "Hatching",
+                }
+                .to_string(),
+            ),
         );
 
         match area.shape {
@@ -80,14 +83,18 @@ impl From<Area> for Feature {
                         .map(|gp| geojson::Position::from(vec![gp.lon, gp.lat]))
                         .collect(),
                 ];
-                feature.geometry = Some(Geometry::new(GeometryValue::Polygon { coordinates: polygon_points }));
+                feature.geometry = Some(Geometry::new(GeometryValue::Polygon {
+                    coordinates: polygon_points,
+                }));
             }
             AreaShape::Circle {
                 center,
                 radius,
                 points,
             } => {
-                let point = Geometry::new(GeometryValue::Point { coordinates: geojson::Position::from(vec![center.lon, center.lat]) });
+                let point = Geometry::new(GeometryValue::Point {
+                    coordinates: geojson::Position::from(vec![center.lon, center.lat]),
+                });
                 feature.geometry = Some(point);
                 properties.insert("radius".to_string(), JsonValue::from(radius));
                 if let Some(p) = points {
@@ -107,12 +114,17 @@ impl TryFrom<Feature> for Area {
     fn try_from(feature: Feature) -> Result<Self, Self::Error> {
         let shape = if let Some(geometry) = &feature.geometry {
             match &geometry.value {
-                GeometryValue::Polygon { coordinates: points } => {
+                GeometryValue::Polygon {
+                    coordinates: points,
+                } => {
                     let mut polygon_points: Vec<GeoPos> = points
                         .first()
                         .ok_or("Polygon has no rings")?
                         .iter()
-                        .map(|pos| GeoPos { lon: pos[0], lat: pos[1] })
+                        .map(|pos| GeoPos {
+                            lon: pos[0],
+                            lat: pos[1],
+                        })
                         .collect();
 
                     // Remove the closing point, as AreaShape::Polygon doesn't expect it.
@@ -127,7 +139,10 @@ impl TryFrom<Feature> for Area {
                         .properties
                         .as_ref()
                         .ok_or("Feature has no properties")?;
-                    let center = GeoPos { lon: point[0], lat: point[1] };
+                    let center = GeoPos {
+                        lon: point[0],
+                        lat: point[1],
+                    };
                     let radius = properties
                         .get("radius")
                         .and_then(serde_json::Value::as_f64)
@@ -159,19 +174,22 @@ impl TryFrom<Feature> for Area {
         if let Some(properties) = &feature.properties {
             check_version_from_properties(properties);
             if let Some(value) = properties.get("stroke_width")
-                && let Some(width) = value.as_f64() {
-                    stroke.width = width as f32;
-                }
+                && let Some(width) = value.as_f64()
+            {
+                stroke.width = width as f32;
+            }
             if let Some(value) = properties.get("stroke_color")
                 && let Some(s) = value.as_str()
-                    && let Ok(color) = Color32::from_hex(s) {
-                        stroke.color = color;
-                    }
+                && let Ok(color) = Color32::from_hex(s)
+            {
+                stroke.color = color;
+            }
             if let Some(value) = properties.get("fill_color")
                 && let Some(s) = value.as_str()
-                    && let Ok(color) = Color32::from_hex(s) {
-                        fill = color;
-                    }
+                && let Ok(color) = Color32::from_hex(s)
+            {
+                fill = color;
+            }
         }
 
         let fill_type = if let Some(properties) = &feature.properties {
@@ -199,8 +217,14 @@ impl From<Polyline> for Feature {
         let mut properties = Map::new();
         add_version_to_properties(&mut properties);
         feature.properties = Some(properties);
-        let line_string: Vec<geojson::Position> = polyline.0.iter().map(|gp| geojson::Position::from(vec![gp.lon, gp.lat])).collect();
-        feature.geometry = Some(Geometry::new(GeometryValue::LineString { coordinates: line_string }));
+        let line_string: Vec<geojson::Position> = polyline
+            .0
+            .iter()
+            .map(|gp| geojson::Position::from(vec![gp.lon, gp.lat]))
+            .collect();
+        feature.geometry = Some(Geometry::new(GeometryValue::LineString {
+            coordinates: line_string,
+        }));
         feature
     }
 }
@@ -210,11 +234,20 @@ impl TryFrom<Feature> for Polyline {
 
     fn try_from(feature: Feature) -> Result<Self, Self::Error> {
         if let Some(geometry) = feature.geometry
-            && let GeometryValue::LineString { coordinates: line_string } = geometry.value {
-                return Ok(Polyline(
-                    line_string.iter().map(|pos| GeoPos { lon: pos[0], lat: pos[1] }).collect(),
-                ));
-            }
+            && let GeometryValue::LineString {
+                coordinates: line_string,
+            } = geometry.value
+        {
+            return Ok(Polyline(
+                line_string
+                    .iter()
+                    .map(|pos| GeoPos {
+                        lon: pos[0],
+                        lat: pos[1],
+                    })
+                    .collect(),
+            ));
+        }
         if let Some(properties) = &feature.properties {
             check_version_from_properties(properties);
         }
@@ -227,7 +260,9 @@ impl From<Text> for Feature {
         let mut feature = Feature::default();
         let mut properties = Map::new();
         add_version_to_properties(&mut properties);
-        let point = Geometry::new(GeometryValue::Point { coordinates: geojson::Position::from(vec![text.pos.lon, text.pos.lat]) });
+        let point = Geometry::new(GeometryValue::Point {
+            coordinates: geojson::Position::from(vec![text.pos.lon, text.pos.lat]),
+        });
         feature.geometry = Some(point);
         properties.insert("text".to_string(), JsonValue::String(text.text));
         properties.insert("color".to_string(), JsonValue::String(text.color.to_hex()));
@@ -265,7 +300,10 @@ impl TryFrom<Feature> for Text {
         let mut text = Text::default();
         if let Some(geometry) = feature.geometry {
             if let GeometryValue::Point { coordinates: point } = geometry.value {
-                text.pos = GeoPos { lon: point[0], lat: point[1] };
+                text.pos = GeoPos {
+                    lon: point[0],
+                    lat: point[1],
+                };
             } else {
                 return Err("Feature is not a Point".to_string());
             }
@@ -286,23 +324,26 @@ impl TryFrom<Feature> for Text {
             }
             if let Some(value) = properties.get("color")
                 && let Some(s) = value.as_str()
-                    && let Ok(color) = Color32::from_hex(s) {
-                        text.color = color;
-                    }
+                && let Ok(color) = Color32::from_hex(s)
+            {
+                text.color = color;
+            }
             if let Some(value) = properties.get("background")
                 && let Some(s) = value.as_str()
-                    && let Ok(color) = Color32::from_hex(s) {
-                        text.background = color;
-                    }
+                && let Ok(color) = Color32::from_hex(s)
+            {
+                text.background = color;
+            }
             if let Some(size_type) = properties.get("size_type")
                 && let Some(size) = properties.get("size")
-                    && let Some(size_f32) = size.as_f64() {
-                        if size_type == "Static" {
-                            text.size = TextSize::Static(size_f32 as f32);
-                        } else if size_type == "Relative" {
-                            text.size = TextSize::Relative(size_f32 as f32);
-                        }
-                    }
+                && let Some(size_f32) = size.as_f64()
+            {
+                if size_type == "Static" {
+                    text.size = TextSize::Static(size_f32 as f32);
+                } else if size_type == "Relative" {
+                    text.size = TextSize::Relative(size_f32 as f32);
+                }
+            }
         }
         Ok(text)
     }

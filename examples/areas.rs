@@ -75,10 +75,10 @@ impl Default for MyApp {
 }
 
 impl eframe::App for MyApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 ui.add_sized(ui.available_size_before_wrap(), &mut self.map)
                     .clicked();
             });
@@ -86,7 +86,7 @@ impl eframe::App for MyApp {
         egui::Window::new("Areas")
             .resizable(false)
             .default_width(280.0)
-            .show(ctx, |ui| {
+            .show(ui.ctx(), |ui| {
                 if let Some(area_layer) = self.map.layer_mut::<AreaLayer>("areas") {
                     ui.label("Mode");
                     ui.horizontal(|ui| {

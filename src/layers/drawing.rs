@@ -22,8 +22,8 @@
 //! }
 //!
 //! impl eframe::App for MyApp {
-//!     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-//!         egui::CentralPanel::default().show(ctx, |ui| {
+//!     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+//!         egui::CentralPanel::default().show_inside(ui, |ui| {
 //!             ui.add(&mut self.map);
 //!         });
 //!     }
@@ -194,7 +194,7 @@ impl DrawingLayer {
     }
 
     /// Creates a new `DrawingLayer`.
-    #[must_use] 
+    #[must_use]
     pub fn new(stroke: Stroke) -> Self {
         Self {
             polylines: Vec::new(),
