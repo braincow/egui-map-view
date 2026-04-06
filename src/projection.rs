@@ -19,7 +19,7 @@ pub struct MapProjection {
 
 impl MapProjection {
     /// Creates a new `MapProjection`.
-    pub(crate) fn new(zoom: u8, center: GeoPos, widget_rect: Rect) -> Self {
+    pub fn new(zoom: u8, center: GeoPos, widget_rect: Rect) -> Self {
         Self {
             zoom,
             center_lon: center.lon,
@@ -29,7 +29,7 @@ impl MapProjection {
     }
 
     /// Projects a geographical coordinate to a screen coordinate.
-    #[must_use] 
+    #[must_use]
     pub fn project(&self, geo_pos: GeoPos) -> Pos2 {
         let center_x = lon_to_x(self.center_lon, self.zoom);
         let center_y = lat_to_y(self.center_lat, self.zoom);
@@ -45,7 +45,7 @@ impl MapProjection {
     }
 
     /// Un-projects a screen coordinate to a geographical coordinate.
-    #[must_use] 
+    #[must_use]
     pub fn unproject(&self, screen_pos: Pos2) -> GeoPos {
         let rel_pos = screen_pos - self.widget_rect.min;
         let widget_center_x = f64::from(self.widget_rect.width()) / 2.0;
@@ -72,6 +72,22 @@ pub struct GeoPos {
 
     /// Latitude.
     pub lat: f64,
+}
+
+impl GeoPos {
+    /// Returns the distance between two geographical positions in meters.
+    #[must_use]
+    pub fn distance(&self, other: &Self) -> f64 {
+        let r = 6_371_000.0; // Earth radius in meters
+        let d_lat = (other.lat - self.lat).to_radians();
+        let d_lon = (other.lon - self.lon).to_radians();
+        let a = (d_lat / 2.0).sin().powi(2)
+            + self.lat.to_radians().cos()
+                * other.lat.to_radians().cos()
+                * (d_lon / 2.0).sin().powi(2);
+        let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
+        r * c
+    }
 }
 
 impl From<(f64, f64)> for GeoPos {

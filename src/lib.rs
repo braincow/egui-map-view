@@ -24,10 +24,10 @@
 //! }
 //!
 //! impl eframe::App for MyApp {
-//!     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+//!     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
 //!         egui::CentralPanel::default()
 //!             .frame(egui::Frame::NONE)
-//!             .show(ctx, |ui| {
+//!             .show_inside(ui, |ui| {
 //!                if ui.add(&mut self.map).clicked() {
 //!                    if let Some(pos) = self.map.mouse_pos {
 //!                        println!("Map clicked at {} x {}", pos.lon, pos.lat);
@@ -180,7 +180,7 @@ impl Map {
     }
 
     /// Get a reference to the layers.
-    #[must_use] 
+    #[must_use]
     pub fn layers(&self) -> &BTreeMap<String, Box<dyn Layer>> {
         &self.layers
     }
@@ -191,7 +191,7 @@ impl Map {
     }
 
     /// Get a reference to a specific layer.
-    #[must_use] 
+    #[must_use]
     pub fn layer<T: Layer>(&self, key: &str) -> Option<&T> {
         self.layers
             .get(key)
@@ -247,88 +247,92 @@ impl Map {
 
         // Handle double-click to zoom and center
         if response.double_clicked()
-            && let Some(pointer_pos) = response.interact_pointer_pos() {
-                let new_zoom = (self.zoom + 1).clamp(MIN_ZOOM, MAX_ZOOM);
+            && let Some(pointer_pos) = response.interact_pointer_pos()
+        {
+            let new_zoom = (self.zoom + 1).clamp(MIN_ZOOM, MAX_ZOOM);
 
-                if new_zoom != self.zoom {
-                    // Determine the geo-coordinate under the mouse cursor before the zoom
-                    let mouse_rel = pointer_pos - rect.min;
-                    let center_x = lon_to_x(self.center.lon, self.zoom);
-                    let center_y = lat_to_y(self.center.lat, self.zoom);
-                    let widget_center_x = f64::from(rect.width()) / 2.0;
-                    let widget_center_y = f64::from(rect.height()) / 2.0;
-
-                    let target_x =
-                        center_x + (f64::from(mouse_rel.x) - widget_center_x) / f64::from(TILE_SIZE);
-                    let target_y =
-                        center_y + (f64::from(mouse_rel.y) - widget_center_y) / f64::from(TILE_SIZE);
-
-                    let new_center_lon = x_to_lon(target_x, self.zoom);
-                    let new_center_lat = y_to_lat(target_y, self.zoom);
-
-                    // Set the new zoom level and center the map on the clicked location
-                    self.zoom = new_zoom;
-                    self.center = (new_center_lon, new_center_lat).into();
-                }
-            }
-
-        // Handle scroll-to-zoom
-        if response.hovered()
-            && let Some(mouse_pos) = response.hover_pos() {
-                let mouse_rel = mouse_pos - rect.min;
-
-                // Determine the geo-coordinate under the mouse cursor.
+            if new_zoom != self.zoom {
+                // Determine the geo-coordinate under the mouse cursor before the zoom
+                let mouse_rel = pointer_pos - rect.min;
                 let center_x = lon_to_x(self.center.lon, self.zoom);
                 let center_y = lat_to_y(self.center.lat, self.zoom);
                 let widget_center_x = f64::from(rect.width()) / 2.0;
                 let widget_center_y = f64::from(rect.height()) / 2.0;
 
-                let target_x = center_x + (f64::from(mouse_rel.x) - widget_center_x) / f64::from(TILE_SIZE);
-                let target_y = center_y + (f64::from(mouse_rel.y) - widget_center_y) / f64::from(TILE_SIZE);
+                let target_x =
+                    center_x + (f64::from(mouse_rel.x) - widget_center_x) / f64::from(TILE_SIZE);
+                let target_y =
+                    center_y + (f64::from(mouse_rel.y) - widget_center_y) / f64::from(TILE_SIZE);
 
-                let scroll = ui.input(|i| i.raw_scroll_delta.y);
-                if scroll != 0.0 {
-                    let old_zoom = self.zoom;
-                    let mut new_zoom = (i32::from(self.zoom) + scroll.signum() as i32)
-                        .clamp(i32::from(MIN_ZOOM), i32::from(MAX_ZOOM))
-                        as u8;
+                let new_center_lon = x_to_lon(target_x, self.zoom);
+                let new_center_lat = y_to_lat(target_y, self.zoom);
 
-                    // If we are zooming out, check if the new zoom level is valid.
-                    if scroll < 0.0 {
-                        let world_pixel_size = 2.0_f64.powi(i32::from(new_zoom)) * f64::from(TILE_SIZE);
-                        // If the world size would become smaller than the widget size, reject the zoom.
-                        if world_pixel_size < f64::from(rect.width())
-                            || world_pixel_size < f64::from(rect.height())
-                        {
-                            new_zoom = old_zoom; // Effectively cancel the zoom by reverting to the old value.
-                        }
-                    }
+                // Set the new zoom level and center the map on the clicked location
+                self.zoom = new_zoom;
+                self.center = (new_center_lon, new_center_lat).into();
+            }
+        }
 
-                    if new_zoom != old_zoom {
-                        let target_lon = x_to_lon(target_x, old_zoom);
-                        let target_lat = y_to_lat(target_y, old_zoom);
+        // Handle scroll-to-zoom
+        if response.hovered()
+            && let Some(mouse_pos) = response.hover_pos()
+        {
+            let mouse_rel = mouse_pos - rect.min;
 
-                        // Set the new zoom level
-                        self.zoom = new_zoom;
+            // Determine the geo-coordinate under the mouse cursor.
+            let center_x = lon_to_x(self.center.lon, self.zoom);
+            let center_y = lat_to_y(self.center.lat, self.zoom);
+            let widget_center_x = f64::from(rect.width()) / 2.0;
+            let widget_center_y = f64::from(rect.height()) / 2.0;
 
-                        // Adjust the map center so the geo-coordinate under the mouse remains the
-                        // same
-                        let new_target_x = lon_to_x(target_lon, new_zoom);
-                        let new_target_y = lat_to_y(target_lat, new_zoom);
+            let target_x =
+                center_x + (f64::from(mouse_rel.x) - widget_center_x) / f64::from(TILE_SIZE);
+            let target_y =
+                center_y + (f64::from(mouse_rel.y) - widget_center_y) / f64::from(TILE_SIZE);
 
-                        let new_center_x = new_target_x
-                            - (f64::from(mouse_rel.x) - widget_center_x) / f64::from(TILE_SIZE);
-                        let new_center_y = new_target_y
-                            - (f64::from(mouse_rel.y) - widget_center_y) / f64::from(TILE_SIZE);
+            let scroll = ui.input(|i| i.smooth_scroll_delta.y);
+            if scroll != 0.0 {
+                let old_zoom = self.zoom;
+                let mut new_zoom = (i32::from(self.zoom) + scroll.signum() as i32)
+                    .clamp(i32::from(MIN_ZOOM), i32::from(MAX_ZOOM))
+                    as u8;
 
-                        self.center = (
-                            x_to_lon(new_center_x, new_zoom),
-                            y_to_lat(new_center_y, new_zoom),
-                        )
-                            .into();
+                // If we are zooming out, check if the new zoom level is valid.
+                if scroll < 0.0 {
+                    let world_pixel_size = 2.0_f64.powi(i32::from(new_zoom)) * f64::from(TILE_SIZE);
+                    // If the world size would become smaller than the widget size, reject the zoom.
+                    if world_pixel_size < f64::from(rect.width())
+                        || world_pixel_size < f64::from(rect.height())
+                    {
+                        new_zoom = old_zoom; // Effectively cancel the zoom by reverting to the old value.
                     }
                 }
+
+                if new_zoom != old_zoom {
+                    let target_lon = x_to_lon(target_x, old_zoom);
+                    let target_lat = y_to_lat(target_y, old_zoom);
+
+                    // Set the new zoom level
+                    self.zoom = new_zoom;
+
+                    // Adjust the map center so the geo-coordinate under the mouse remains the
+                    // same
+                    let new_target_x = lon_to_x(target_lon, new_zoom);
+                    let new_target_y = lat_to_y(target_lat, new_zoom);
+
+                    let new_center_x = new_target_x
+                        - (f64::from(mouse_rel.x) - widget_center_x) / f64::from(TILE_SIZE);
+                    let new_center_y = new_target_y
+                        - (f64::from(mouse_rel.y) - widget_center_y) / f64::from(TILE_SIZE);
+
+                    self.center = (
+                        x_to_lon(new_center_x, new_zoom),
+                        y_to_lat(new_center_y, new_zoom),
+                    )
+                        .into();
+                }
             }
+        }
     }
 
     /// Draws the attribution text.
@@ -485,22 +489,23 @@ pub(crate) fn load_tile(
     // This is done before matching on the state, so that we can immediately draw
     // the tile if it has just finished loading.
     if let Tile::Loading(promise) = tile_state
-        && let Some(result) = promise.ready() {
-            match result {
-                Ok(color_image) => {
-                    let texture = ctx.load_texture(
-                        format!("tile_{}_{}_{}", tile_id.z, tile_id.x, tile_id.y),
-                        color_image.clone(),
-                        Default::default(),
-                    );
-                    *tile_state = Tile::Loaded(texture);
-                }
-                Err(e) => {
-                    error!("{e:?}");
-                    *tile_state = Tile::Failed(e.clone());
-                }
+        && let Some(result) = promise.ready()
+    {
+        match result {
+            Ok(color_image) => {
+                let texture = ctx.load_texture(
+                    format!("tile_{}_{}_{}", tile_id.z, tile_id.x, tile_id.y),
+                    color_image.clone(),
+                    Default::default(),
+                );
+                *tile_state = Tile::Loaded(texture);
+            }
+            Err(e) => {
+                error!("{e:?}");
+                *tile_state = Tile::Failed(e.clone());
             }
         }
+    }
 }
 
 /// Draws a single map tile.

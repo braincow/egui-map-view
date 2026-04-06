@@ -30,26 +30,26 @@ impl Default for MyApp {
 }
 
 impl eframe::App for MyApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        egui::Panel::top("top_panel").show_inside(ui, |ui| {
             ui.label("This is the top panel.");
         });
 
-        egui::SidePanel::left("left_panel").show(ctx, |ui| {
+        egui::Panel::left("left_panel").show_inside(ui, |ui| {
             ui.label("This is the left panel.");
         });
 
-        egui::SidePanel::right("right_panel").show(ctx, |ui| {
+        egui::Panel::right("right_panel").show_inside(ui, |ui| {
             ui.label("This is the right panel.");
         });
 
-        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+        egui::Panel::bottom("bottom_panel").show_inside(ui, |ui| {
             ui.label("This is the bottom panel.");
         });
 
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 ui.add_sized(ui.available_size_before_wrap(), &mut self.map)
                     .clicked();
             });

@@ -98,7 +98,6 @@ pub struct TextLayer {
     dragged_text_index: Option<usize>,
 }
 
-
 impl TextLayer {
     /// Starts editing an existing text element.
     pub fn start_editing(&mut self, index: usize) {
@@ -175,16 +174,18 @@ impl TextLayer {
         }
 
         if response.drag_started()
-            && let Some(pointer_pos) = response.interact_pointer_pos() {
-                self.dragged_text_index = self.find_text_at(pointer_pos, projection, &response.ctx);
-            }
+            && let Some(pointer_pos) = response.interact_pointer_pos()
+        {
+            self.dragged_text_index = self.find_text_at(pointer_pos, projection, &response.ctx);
+        }
 
         if response.dragged()
             && let Some(text_index) = self.dragged_text_index
-                && let Some(text) = self.texts.get_mut(text_index)
-                    && let Some(pointer_pos) = response.interact_pointer_pos() {
-                        text.pos = projection.unproject(pointer_pos);
-                    }
+            && let Some(text) = self.texts.get_mut(text_index)
+            && let Some(pointer_pos) = response.interact_pointer_pos()
+        {
+            text.pos = projection.unproject(pointer_pos);
+        }
 
         if response.drag_stopped() {
             self.dragged_text_index = None;
@@ -288,7 +289,8 @@ impl TextLayer {
             TextSize::Relative(size_in_meters) => {
                 let p2 = projection.project(GeoPos {
                     lon: text.pos.lon
-                        + (f64::from(size_in_meters) / (111_320.0 * text.pos.lat.to_radians().cos())),
+                        + (f64::from(size_in_meters)
+                            / (111_320.0 * text.pos.lat.to_radians().cos())),
                     lat: text.pos.lat,
                 });
                 (p2.x - projection.project(text.pos).x).abs()

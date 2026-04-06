@@ -36,10 +36,10 @@ impl Default for MyApp {
 }
 
 impl eframe::App for MyApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 ui.add_sized(ui.available_size_before_wrap(), &mut self.map);
             });
 
@@ -47,7 +47,7 @@ impl eframe::App for MyApp {
         egui::Window::new("Controls")
             .resizable(false)
             .default_width(280.0)
-            .show(ctx, |ui| {
+            .show(ui.ctx(), |ui| {
                 if let Some(layer) = self.map.layer_mut::<TextLayer>("text_layer") {
                     ui.heading("Mode");
                     ui.horizontal(|ui| {
@@ -71,7 +71,7 @@ impl eframe::App for MyApp {
                 egui::Window::new(title)
                     .open(&mut open)
                     .resizable(false)
-                    .show(ctx, |ui| {
+                    .show(ui.ctx(), |ui| {
                         ui.text_edit_singleline(&mut editing.properties.text);
 
                         ui.horizontal(|ui| {

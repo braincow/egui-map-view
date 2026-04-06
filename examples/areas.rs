@@ -6,7 +6,7 @@ use egui::{Color32, Stroke};
 use egui_map_view::{
     Map,
     config::OpenStreetMapConfig,
-    layers::area::{Area, AreaLayer, AreaMode, AreaShape::*},
+    layers::area::{Area, AreaLayer, AreaMode, AreaShape::*, FillType},
 };
 
 fn main() -> eframe::Result {
@@ -32,30 +32,41 @@ impl Default for MyApp {
         let mut area_layer = AreaLayer::default();
         let (center_lon, center_lat) = map.center.into();
 
+        // Triangle with hatching fill
         area_layer.add_area(Area {
             shape: Polygon(vec![
-                // Create GeoPos points relative to the maps default center
                 (center_lon - 1.5, center_lat - 0.5).into(),
                 (center_lon + 1.5, center_lat - 0.5).into(),
                 (center_lon, center_lat + 1.0).into(),
             ]),
             stroke: Stroke::new(2.0, Color32::from_rgb(255, 0, 0)),
             fill: Color32::from_rgba_unmultiplied(255, 0, 0, 50),
+            fill_type: FillType::Hatching,
         });
 
-        // Add a circle
-        let circle_center_lon = center_lon - 3.5;
-        let circle_center_lat = center_lat;
-        let radius = 150000.0; // In meters
-
+        // Circle with solid fill
         area_layer.add_area(Area {
             shape: Circle {
-                center: (circle_center_lon, circle_center_lat).into(),
-                radius,
-                points: None, // calculate reasonable amount of points on the circle polygon based on its radius
+                center: (center_lon - 3.5, center_lat).into(),
+                radius: 150000.0,
+                points: None,
             },
             stroke: Stroke::new(2.0, Color32::from_rgb(0, 102, 255)),
             fill: Color32::from_rgba_unmultiplied(0, 102, 255, 50),
+            fill_type: FillType::Solid,
+        });
+
+        // Rectangle with no fill (outline only)
+        area_layer.add_area(Area {
+            shape: Polygon(vec![
+                (center_lon + 3.0, center_lat - 0.5).into(),
+                (center_lon + 5.0, center_lat - 0.5).into(),
+                (center_lon + 5.0, center_lat + 0.5).into(),
+                (center_lon + 3.0, center_lat + 0.5).into(),
+            ]),
+            stroke: Stroke::new(2.0, Color32::from_rgb(0, 180, 0)),
+            fill: Color32::TRANSPARENT,
+            fill_type: FillType::None,
         });
 
         map.add_layer("areas", area_layer);
@@ -64,10 +75,10 @@ impl Default for MyApp {
 }
 
 impl eframe::App for MyApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 ui.add_sized(ui.available_size_before_wrap(), &mut self.map)
                     .clicked();
             });
@@ -75,7 +86,7 @@ impl eframe::App for MyApp {
         egui::Window::new("Areas")
             .resizable(false)
             .default_width(280.0)
-            .show(ctx, |ui| {
+            .show(ui.ctx(), |ui| {
                 if let Some(area_layer) = self.map.layer_mut::<AreaLayer>("areas") {
                     ui.label("Mode");
                     ui.horizontal(|ui| {
