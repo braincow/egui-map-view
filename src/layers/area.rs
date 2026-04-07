@@ -45,6 +45,7 @@
 
 use crate::layers::{
     Layer, dist_sq_to_segment, projection_factor, segments_intersect, serde_color32, serde_stroke,
+    default_opacity,
 };
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Mesh, Painter, Pos2, Response, Shape, Stroke};
@@ -144,6 +145,10 @@ pub struct AreaLayer {
 
     #[serde(skip)]
     dragged_object: Option<DraggedObject>,
+
+    /// The opacity of the layer.
+    #[serde(default = "default_opacity")]
+    pub opacity: f32,
 }
 
 impl Default for AreaLayer {
@@ -162,6 +167,7 @@ impl AreaLayer {
             node_fill: Color32::from_rgb(0, 128, 0),
             mode: AreaMode::default(),
             dragged_object: None,
+            opacity: 1.0,
         }
     }
 
@@ -190,10 +196,16 @@ impl AreaLayer {
             .into_iter()
             .map(geojson::Feature::from)
             .collect();
+        let mut foreign_members = serde_json::Map::new();
+        foreign_members.insert(
+            "opacity".to_string(),
+            serde_json::Value::from(f64::from(self.opacity)),
+        );
+
         let feature_collection = geojson::FeatureCollection {
             bbox: None,
             features,
-            foreign_members: None,
+            foreign_members: Some(foreign_members),
         };
         serde_json::to_string(&feature_collection)
     }
@@ -208,6 +220,14 @@ impl AreaLayer {
             .filter_map(|f| Area::try_from(f).ok())
             .collect();
         self.areas.extend(new_areas);
+
+        if let Some(foreign_members) = feature_collection.foreign_members {
+            if let Some(value) = foreign_members.get("opacity")
+                && let Some(opacity) = value.as_f64()
+            {
+                self.opacity = opacity as f32;
+            }
+        }
         Ok(())
     }
 
@@ -658,6 +678,14 @@ impl Layer for AreaLayer {
         self
     }
 
+    fn opacity(&self) -> f32 {
+        self.opacity
+    }
+
+    fn set_opacity(&mut self, opacity: f32) {
+        self.opacity = opacity;
+    }
+
     fn handle_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
         match self.mode {
             AreaMode::Disabled => false,
@@ -677,7 +705,11 @@ impl Layer for AreaLayer {
                     points: screen_points.clone(),
                     closed: true,
                     fill: Color32::TRANSPARENT,
-                    stroke: area.stroke.into(),
+                    stroke: Stroke {
+                        color: area.stroke.color.gamma_multiply(self.opacity),
+                        ..area.stroke
+                    }
+                    .into(),
                 });
                 painter.add(path_shape);
 
@@ -697,7 +729,7 @@ impl Layer for AreaLayer {
                                         .map(|p| egui::epaint::Vertex {
                                             pos: *p,
                                             uv: Default::default(),
-                                            color: area.fill,
+                                            color: area.fill.gamma_multiply(self.opacity),
                                         })
                                         .collect(),
                                     indices: indices.into_iter().map(|i| i as u32).collect(),
@@ -717,7 +749,13 @@ impl Layer for AreaLayer {
                             std::f32::consts::FRAC_PI_4,
                         );
                         for (a, b) in segments {
-                            painter.line_segment([a, b], area.stroke);
+                            painter.line_segment(
+                                [a, b],
+                                Stroke {
+                                    color: area.stroke.color.gamma_multiply(self.opacity),
+                                    ..area.stroke
+                                },
+                            );
                         }
                     }
                 }
@@ -730,7 +768,11 @@ impl Layer for AreaLayer {
                 match &area.shape {
                     AreaShape::Polygon(_) => {
                         for point in &screen_points {
-                            painter.circle_filled(*point, self.node_radius, self.node_fill);
+                            painter.circle_filled(
+                                *point,
+                                self.node_radius,
+                                self.node_fill.gamma_multiply(self.opacity),
+                            );
                         }
                     }
                     AreaShape::Circle {
@@ -749,9 +791,17 @@ impl Layer for AreaLayer {
                         let point_on_circle_screen = projection.project(point_on_circle_geo);
                         let radius_pixels = center_screen.distance(point_on_circle_screen);
 
-                        painter.circle_filled(center_screen, self.node_radius, self.node_fill);
+                        painter.circle_filled(
+                            center_screen,
+                            self.node_radius,
+                            self.node_fill.gamma_multiply(self.opacity),
+                        );
                         let radius_handle_pos = center_screen + egui::vec2(radius_pixels, 0.0);
-                        painter.circle_filled(radius_handle_pos, self.node_radius, self.node_fill);
+                        painter.circle_filled(
+                            radius_handle_pos,
+                            self.node_radius,
+                            self.node_fill.gamma_multiply(self.opacity),
+                        );
                     }
                 }
             }

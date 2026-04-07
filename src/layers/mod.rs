@@ -102,6 +102,19 @@ pub trait Layer: Any {
 
     /// Gets the layer as a mutable `dyn Any`.
     fn as_any_mut(&mut self) -> &mut dyn Any;
+
+    /// The opacity of the layer, from 0.0 (completely transparent) to 1.0 (completely opaque).
+    fn opacity(&self) -> f32 {
+        1.0
+    }
+
+    /// Sets the opacity of the layer.
+    fn set_opacity(&mut self, _opacity: f32) {}
+}
+
+/// A helper function for `serde` to provide a default opacity of 1.0.
+pub fn default_opacity() -> f32 {
+    1.0
 }
 
 /// Calculates the squared distance from a point to a line segment.
@@ -200,6 +213,29 @@ mod tests {
         let c = pos2(5.0, 5.0);
         let p5 = pos2(10.0, 10.0);
         assert!((dist_sq_to_segment(p5, c, c) - 50.0).abs() < EPSILON); // dist^2 from (10,10) to (5,5) is 25+25 = 50
+    }
+
+    #[test]
+    fn test_layer_opacity_defaults() {
+        struct MockLayer;
+        impl Layer for MockLayer {
+            fn handle_input(&mut self, _: &Response, _: &MapProjection) -> bool {
+                false
+            }
+            fn draw(&self, _: &Painter, _: &MapProjection) {}
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+            fn as_any_mut(&mut self) -> &mut dyn Any {
+                self
+            }
+        }
+
+        let mut layer = MockLayer;
+        assert_eq!(layer.opacity(), 1.0);
+        layer.set_opacity(0.5);
+        // Default implementation does nothing, so it should still be 1.0
+        assert_eq!(layer.opacity(), 1.0);
     }
 
     #[test]
