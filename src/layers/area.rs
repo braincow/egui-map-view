@@ -146,6 +146,9 @@ pub struct AreaLayer {
     #[serde(skip)]
     dragged_object: Option<DraggedObject>,
 
+    #[serde(skip)]
+    hovered_object: Option<DraggedObject>,
+
     /// The opacity of the layer.
     #[serde(default = "default_opacity")]
     pub opacity: f32,
@@ -167,6 +170,7 @@ impl AreaLayer {
             node_fill: Color32::from_rgb(0, 128, 0),
             mode: AreaMode::default(),
             dragged_object: None,
+            hovered_object: None,
             opacity: 1.0,
         }
     }
@@ -232,6 +236,10 @@ impl AreaLayer {
     }
 
     fn handle_modify_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
+        self.hovered_object = response
+            .hover_pos()
+            .and_then(|pos| self.find_object_at(pos, projection));
+
         if response.double_clicked()
             && let Some(pointer_pos) = response.interact_pointer_pos()
         {
@@ -361,17 +369,11 @@ impl AreaLayer {
 
         if is_dragging {
             response.ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
-        } else if let Some(pointer_pos) = response.hover_pos()
-            && self.find_object_at(pointer_pos, projection).is_some()
-        {
+        } else if self.hovered_object.is_some() {
             response.ctx.set_cursor_icon(egui::CursorIcon::Grab);
         }
 
-        is_dragging
-            || (response.hovered()
-                && self
-                    .find_object_at(response.hover_pos().unwrap_or_default(), projection)
-                    .is_some())
+        is_dragging || (response.hovered() && self.hovered_object.is_some())
     }
 
     fn find_object_at(
@@ -688,13 +690,16 @@ impl Layer for AreaLayer {
 
     fn handle_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
         match self.mode {
-            AreaMode::Disabled => false,
+            AreaMode::Disabled => {
+                self.hovered_object = None;
+                false
+            }
             AreaMode::Modify => self.handle_modify_input(response, projection),
         }
     }
 
     fn draw(&self, painter: &Painter, projection: &MapProjection) {
-        for area in &self.areas {
+        for (area_idx, area) in self.areas.iter().enumerate() {
             let points = area.get_points(projection);
             let screen_points: Vec<Pos2> = points.iter().map(|p| projection.project(*p)).collect();
 
@@ -767,12 +772,29 @@ impl Layer for AreaLayer {
             if self.mode == AreaMode::Modify {
                 match &area.shape {
                     AreaShape::Polygon(_) => {
-                        for point in &screen_points {
+                        for (node_idx, point) in screen_points.iter().enumerate() {
                             painter.circle_filled(
                                 *point,
                                 self.node_radius,
                                 self.node_fill.gamma_multiply(self.opacity),
                             );
+
+                            if let Some(DraggedObject::PolygonNode {
+                                area_index,
+                                node_index,
+                            }) = self.hovered_object
+                            {
+                                if area_index == area_idx && node_index == node_idx {
+                                    painter.circle_stroke(
+                                        *point,
+                                        self.node_radius * 3.0,
+                                        Stroke::new(
+                                            1.0,
+                                            self.node_fill.gamma_multiply(self.opacity),
+                                        ),
+                                    );
+                                }
+                            }
                         }
                     }
                     AreaShape::Circle {
@@ -796,12 +818,43 @@ impl Layer for AreaLayer {
                             self.node_radius,
                             self.node_fill.gamma_multiply(self.opacity),
                         );
+
+                        if let Some(DraggedObject::CircleCenter { area_index }) =
+                            self.hovered_object
+                        {
+                            if area_index == area_idx {
+                                painter.circle_stroke(
+                                    center_screen,
+                                    self.node_radius * 3.0,
+                                    Stroke::new(
+                                        1.0,
+                                        self.node_fill.gamma_multiply(self.opacity),
+                                    ),
+                                );
+                            }
+                        }
+
                         let radius_handle_pos = center_screen + egui::vec2(radius_pixels, 0.0);
                         painter.circle_filled(
                             radius_handle_pos,
                             self.node_radius,
                             self.node_fill.gamma_multiply(self.opacity),
                         );
+
+                        if let Some(DraggedObject::CircleRadius { area_index }) =
+                            self.hovered_object
+                        {
+                            if area_index == area_idx {
+                                painter.circle_stroke(
+                                    radius_handle_pos,
+                                    self.node_radius * 2.0,
+                                    Stroke::new(
+                                        1.0,
+                                        self.node_fill.gamma_multiply(self.opacity),
+                                    ),
+                                );
+                            }
+                        }
                     }
                 }
             }
