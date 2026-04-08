@@ -44,8 +44,8 @@
 //! ```
 
 use crate::layers::{
-    Layer, dist_sq_to_segment, projection_factor, segments_intersect, serde_color32, serde_stroke,
-    default_opacity,
+    Layer, default_opacity, dist_sq_to_segment, projection_factor, segments_intersect,
+    serde_color32, serde_stroke,
 };
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Mesh, Painter, Pos2, Response, Shape, Stroke};
@@ -59,8 +59,10 @@ pub enum AreaMode {
     /// The layer is not interactive.
     #[default]
     Disabled,
-    /// The user can add/remove/move nodes.
+    /// All areas and their nodes are interactive.
     Modify,
+    /// Only the selected area is interactive.
+    ModifySelected,
 }
 
 /// The shape of a polygon area on the map.
@@ -152,6 +154,10 @@ pub struct AreaLayer {
     /// The opacity of the layer.
     #[serde(default = "default_opacity")]
     pub opacity: f32,
+
+    #[serde(skip)]
+    /// The index of the currently selected area. Only used when in `AreaMode::Selected`.
+    pub selected_area: Option<usize>,
 }
 
 impl Default for AreaLayer {
@@ -172,6 +178,7 @@ impl AreaLayer {
             dragged_object: None,
             hovered_object: None,
             opacity: 1.0,
+            selected_area: None,
         }
     }
 
@@ -235,18 +242,25 @@ impl AreaLayer {
         Ok(())
     }
 
-    fn handle_modify_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
+    fn handle_modify_input(
+        &mut self,
+        response: &Response,
+        projection: &MapProjection,
+        limit_to_area: Option<usize>,
+    ) -> bool {
         self.hovered_object = response
             .hover_pos()
-            .and_then(|pos| self.find_object_at(pos, projection));
+            .and_then(|pos| self.find_object_at(pos, projection, limit_to_area));
 
         if response.double_clicked()
             && let Some(pointer_pos) = response.interact_pointer_pos()
         {
             // TODO: This only works for polygons.
-            if self.find_node_at(pointer_pos, projection).is_none()
+            if self
+                .find_node_at(pointer_pos, projection, limit_to_area)
+                .is_none()
                 && let Some((area_idx, node_idx)) =
-                    self.find_line_segment_at(pointer_pos, projection)
+                    self.find_line_segment_at(pointer_pos, projection, limit_to_area)
                 && let Some(area) = self.areas.get_mut(area_idx)
                 && let AreaShape::Polygon(points) = &mut area.shape
             {
@@ -269,7 +283,7 @@ impl AreaLayer {
         if response.drag_started()
             && let Some(pointer_pos) = response.interact_pointer_pos()
         {
-            self.dragged_object = self.find_object_at(pointer_pos, projection);
+            self.dragged_object = self.find_object_at(pointer_pos, projection, limit_to_area);
         }
 
         if response.dragged()
@@ -380,10 +394,16 @@ impl AreaLayer {
         &self,
         screen_pos: Pos2,
         projection: &MapProjection,
+        limit_to_area: Option<usize>,
     ) -> Option<DraggedObject> {
         let click_tolerance_sq = (self.node_radius * 3.0).powi(2);
 
         for (area_idx, area) in self.areas.iter().enumerate().rev() {
+            if let Some(limit_idx) = limit_to_area
+                && area_idx != limit_idx
+            {
+                continue;
+            }
             match &area.shape {
                 AreaShape::Polygon(points) => {
                     for (node_idx, node) in points.iter().enumerate() {
@@ -433,8 +453,13 @@ impl AreaLayer {
         None
     }
 
-    fn find_node_at(&self, screen_pos: Pos2, projection: &MapProjection) -> Option<(usize, usize)> {
-        match self.find_object_at(screen_pos, projection) {
+    fn find_node_at(
+        &self,
+        screen_pos: Pos2,
+        projection: &MapProjection,
+        limit_to_area: Option<usize>,
+    ) -> Option<(usize, usize)> {
+        match self.find_object_at(screen_pos, projection, limit_to_area) {
             Some(DraggedObject::PolygonNode {
                 area_index,
                 node_index,
@@ -447,10 +472,16 @@ impl AreaLayer {
         &self,
         screen_pos: Pos2,
         projection: &MapProjection,
+        limit_to_area: Option<usize>,
     ) -> Option<(usize, usize)> {
         let click_tolerance = (self.node_radius * 2.0).powi(2);
 
         for (area_idx, area) in self.areas.iter().enumerate().rev() {
+            if let Some(limit_idx) = limit_to_area
+                && area_idx != limit_idx
+            {
+                continue;
+            }
             if let AreaShape::Polygon(points) = &area.shape {
                 if points.len() < 2 {
                     continue;
@@ -591,6 +622,60 @@ impl Area {
             }
         }
     }
+
+    /// Checks if a screen position is inside the area.
+    pub fn contains(&self, pos: Pos2, projection: &MapProjection) -> bool {
+        match &self.shape {
+            AreaShape::Circle { center, radius, .. } => {
+                let center_screen = projection.project(*center);
+                let point_on_circle_geo = GeoPos {
+                    lon: center.lon + (radius / (111_320.0 * center.lat.to_radians().cos())),
+                    lat: center.lat,
+                };
+                let point_on_circle_screen = projection.project(point_on_circle_geo);
+                let radius_pixels = center_screen.distance(point_on_circle_screen);
+                center_screen.distance_sq(pos) <= radius_pixels.powi(2)
+            }
+            AreaShape::Polygon(_) => {
+                let points = self.get_points(projection);
+                let screen_points: Vec<Pos2> =
+                    points.iter().map(|p| projection.project(*p)).collect();
+                if screen_points.len() < 3 {
+                    return false;
+                }
+                let flat_points: Vec<f64> = screen_points
+                    .iter()
+                    .flat_map(|p| [f64::from(p.x), f64::from(p.y)])
+                    .collect();
+                if let Ok(indices) = earcutr::earcut(&flat_points, &[], 2) {
+                    for chunk in indices.chunks_exact(3) {
+                        let p1 = screen_points[chunk[0]];
+                        let p2 = screen_points[chunk[1]];
+                        let p3 = screen_points[chunk[2]];
+                        if point_in_triangle(pos, p1, p2, p3) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+        }
+    }
+}
+
+fn point_in_triangle(p: Pos2, a: Pos2, b: Pos2, c: Pos2) -> bool {
+    let d1 = sign(p, a, b);
+    let d2 = sign(p, b, c);
+    let d3 = sign(p, c, a);
+
+    let has_neg = (d1 < 0.0) || (d2 < 0.0) || (d3 < 0.0);
+    let has_pos = (d1 > 0.0) || (d2 > 0.0) || (d3 > 0.0);
+
+    !(has_neg && has_pos)
+}
+
+fn sign(p1: Pos2, p2: Pos2, p3: Pos2) -> f32 {
+    (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)
 }
 
 /// Generates diagonal hatching line segments clipped to the given polygon.
@@ -694,7 +779,33 @@ impl Layer for AreaLayer {
                 self.hovered_object = None;
                 false
             }
-            AreaMode::Modify => self.handle_modify_input(response, projection),
+            AreaMode::Modify => self.handle_modify_input(response, projection, None),
+            AreaMode::ModifySelected => {
+                if response.clicked()
+                    && let Some(pointer_pos) = response.interact_pointer_pos()
+                {
+                    // Find if any area was clicked to select it.
+                    let clicked_area_idx =
+                        self.areas.iter().enumerate().rev().find_map(|(idx, area)| {
+                            if area.contains(pointer_pos, projection) {
+                                Some(idx)
+                            } else {
+                                None
+                            }
+                        });
+
+                    if clicked_area_idx != self.selected_area {
+                        self.selected_area = clicked_area_idx;
+                        return true;
+                    }
+                }
+
+                if let Some(selected_idx) = self.selected_area {
+                    self.handle_modify_input(response, projection, Some(selected_idx))
+                } else {
+                    false
+                }
+            }
         }
     }
 
@@ -705,16 +816,26 @@ impl Layer for AreaLayer {
 
             // Draw polygon outline
             if screen_points.len() >= 3 {
+                let is_selected =
+                    self.mode == AreaMode::ModifySelected && self.selected_area == Some(area_idx);
+                let stroke = if is_selected {
+                    Stroke {
+                        width: area.stroke.width * 2.0,
+                        color: area.stroke.color.gamma_multiply(self.opacity),
+                    }
+                } else {
+                    Stroke {
+                        color: area.stroke.color.gamma_multiply(self.opacity),
+                        ..area.stroke
+                    }
+                };
+
                 // Use a generic path for the stroke.
                 let path_shape = Shape::Path(egui::epaint::PathShape {
                     points: screen_points.clone(),
                     closed: true,
                     fill: Color32::TRANSPARENT,
-                    stroke: Stroke {
-                        color: area.stroke.color.gamma_multiply(self.opacity),
-                        ..area.stroke
-                    }
-                    .into(),
+                    stroke: stroke.into(),
                 });
                 painter.add(path_shape);
 
@@ -768,8 +889,10 @@ impl Layer for AreaLayer {
                 warn!("Invalid amount of points in area. {area:?}");
             }
 
-            // Draw nodes only when in modify mode
-            if self.mode == AreaMode::Modify {
+            // Draw nodes only when in modify mode or if specifically selected
+            let show_nodes = self.mode == AreaMode::Modify
+                || (self.mode == AreaMode::ModifySelected && self.selected_area == Some(area_idx));
+            if show_nodes {
                 match &area.shape {
                     AreaShape::Polygon(_) => {
                         for (node_idx, point) in screen_points.iter().enumerate() {
@@ -826,10 +949,7 @@ impl Layer for AreaLayer {
                                 painter.circle_stroke(
                                     center_screen,
                                     self.node_radius * 3.0,
-                                    Stroke::new(
-                                        1.0,
-                                        self.node_fill.gamma_multiply(self.opacity),
-                                    ),
+                                    Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
                                 );
                             }
                         }
@@ -848,10 +968,7 @@ impl Layer for AreaLayer {
                                 painter.circle_stroke(
                                     radius_handle_pos,
                                     self.node_radius * 2.0,
-                                    Stroke::new(
-                                        1.0,
-                                        self.node_fill.gamma_multiply(self.opacity),
-                                    ),
+                                    Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
                                 );
                             }
                         }
@@ -928,7 +1045,7 @@ mod tests {
         let projection = dummy_projection();
         let position = pos2(100.0, 100.0);
 
-        assert!(layer.find_object_at(position, &projection).is_none());
+        assert!(layer.find_object_at(position, &projection, None).is_none());
     }
 
     #[test]
@@ -945,7 +1062,7 @@ mod tests {
         });
 
         // Position is exactly on the node
-        let found = layer.find_object_at(pos2(100.0, 100.0), &projection);
+        let found = layer.find_object_at(pos2(100.0, 100.0), &projection, None);
         assert!(matches!(
             found,
             Some(DraggedObject::PolygonNode {
@@ -955,7 +1072,7 @@ mod tests {
         ));
 
         // Position is slightly off but within tolerance
-        let found_nearby = layer.find_object_at(pos2(101.0, 101.0), &projection);
+        let found_nearby = layer.find_object_at(pos2(101.0, 101.0), &projection, None);
         assert!(matches!(
             found_nearby,
             Some(DraggedObject::PolygonNode {
@@ -965,7 +1082,7 @@ mod tests {
         ));
 
         // Position is too far
-        let not_found = layer.find_object_at(pos2(200.0, 200.0), &projection);
+        let not_found = layer.find_object_at(pos2(200.0, 200.0), &projection, None);
         assert!(not_found.is_none());
     }
 
@@ -1087,10 +1204,10 @@ mod tests {
         let click_pos = pos2(150.0, 100.0);
 
         // Should NOT find a node
-        assert!(layer.find_node_at(click_pos, &projection).is_none());
+        assert!(layer.find_node_at(click_pos, &projection, None).is_none());
 
         // Should find the segment
-        let segment = layer.find_line_segment_at(click_pos, &projection);
+        let segment = layer.find_line_segment_at(click_pos, &projection, None);
         assert!(segment.is_some());
         assert_eq!(segment.unwrap().0, 0); // area_index
         assert_eq!(segment.unwrap().1, 0);
