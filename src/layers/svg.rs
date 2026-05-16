@@ -1,6 +1,6 @@
 //! A layer for placing SVG elements on the map.
 
-use crate::layers::Layer;
+use crate::layers::{Layer, default_opacity};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Painter, PointerButton, Pos2, Response};
 use serde::{Deserialize, Serialize};
@@ -139,6 +139,10 @@ pub struct SvgLayer {
     /// The index of the element currently being dragged.
     #[serde(skip)]
     pub dragging_index: Option<usize>,
+
+    /// The opacity of the layer.
+    #[serde(default = "default_opacity")]
+    pub opacity: f32,
 }
 
 impl SvgLayer {
@@ -165,6 +169,14 @@ impl Layer for SvgLayer {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn opacity(&self) -> f32 {
+        self.opacity
+    }
+
+    fn set_opacity(&mut self, opacity: f32) {
+        self.opacity = opacity;
     }
 
     fn handle_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
@@ -282,7 +294,7 @@ impl Layer for SvgLayer {
                         texture.id,
                         rect,
                         egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                        Color32::WHITE,
+                        Color32::WHITE.gamma_multiply(self.opacity),
                     );
                 }
                 _ => {
