@@ -9,16 +9,16 @@ homepage = "https://github.com/braincow/egui-map-view"
 keywords = ["egui", "map", "openstreetmap"]
 
 [dependencies]
-eframe = "0.34.1"
+eframe = "0.34.2"
 poll-promise = "0.3"
 image = "0.25.10"
-reqwest = { version = "0.13.2", features = ["blocking"] }
+reqwest = { version = "0.13.3", features = ["blocking"] }
 thiserror = "2.0.18"
 log = "0.4.29"
 eyre = "0.6.12"
 once_cell = "1.17.2"
-egui = { version = "0.34.1", features = ["serde"] }
-egui_extras = { version = "0.34.1", features = [
+egui = { version = "0.34.2", features = ["serde"] }
+egui_extras = { version = "0.34.2", features = [
     "svg",
     "image",
     "svg_text",
