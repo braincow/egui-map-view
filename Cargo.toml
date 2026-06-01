@@ -12,7 +12,7 @@ keywords = ["egui", "map", "openstreetmap"]
 eframe = "0.34.1"
 poll-promise = "0.3"
 image = "0.25.10"
-reqwest = { version = "0.13.2", features = ["blocking"] }
+reqwest = { version = "0.13.3", features = ["blocking"] }
 thiserror = "2.0.18"
 log = "0.4.29"
 eyre = "0.6.12"
