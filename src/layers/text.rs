@@ -1,6 +1,6 @@
 //! A layer for placing text on the map.
 
-use crate::layers::{Layer, serde_color32, default_opacity};
+use crate::layers::{Layer, default_opacity, serde_color32};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Response};
 use serde::{Deserialize, Serialize};
@@ -78,7 +78,6 @@ pub enum TextLayerMode {
 /// Layer implementation that allows placing text on the map.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
-#[derive(Default)]
 pub struct TextLayer {
     texts: Vec<Text>,
 
@@ -100,6 +99,19 @@ pub struct TextLayer {
     /// The opacity of the layer.
     #[serde(default = "default_opacity")]
     pub opacity: f32,
+}
+
+impl Default for TextLayer {
+    fn default() -> Self {
+        Self {
+            texts: Vec::new(),
+            mode: TextLayerMode::default(),
+            new_text_properties: Text::default(),
+            editing: None,
+            dragged_text_index: None,
+            opacity: 1.0,
+        }
+    }
 }
 
 impl TextLayer {

@@ -127,7 +127,7 @@ pub struct SvgClickEvent {
 }
 
 /// Layer implementation that allows placing multiple SVG elements on the map.
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SvgLayer {
     /// The list of SVG elements.
     pub elements: Vec<SvgElement>,
@@ -143,6 +143,17 @@ pub struct SvgLayer {
     /// The opacity of the layer.
     #[serde(default = "default_opacity")]
     pub opacity: f32,
+}
+
+impl Default for SvgLayer {
+    fn default() -> Self {
+        Self {
+            elements: Vec::new(),
+            events: Vec::new(),
+            dragging_index: None,
+            opacity: 1.0,
+        }
+    }
 }
 
 impl SvgLayer {
