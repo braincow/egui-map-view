@@ -186,13 +186,12 @@ impl TextLayer {
             .collect();
         self.texts.extend(new_texts);
 
-        if let Some(foreign_members) = feature_collection.foreign_members {
-            if let Some(value) = foreign_members.get("opacity")
+        if let Some(foreign_members) = feature_collection.foreign_members
+            && let Some(value) = foreign_members.get("opacity")
                 && let Some(opacity) = value.as_f64()
             {
                 self.opacity = opacity as f32;
             }
-        }
         Ok(())
     }
 
