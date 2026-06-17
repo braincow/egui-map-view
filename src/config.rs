@@ -138,9 +138,9 @@ impl Default for KarttapaikkaMapConfig {
             attribution: "© Maanmittauslaitos".to_string(),
             attribution_url: "https://www.maanmittauslaitos.fi/asioi-verkossa/karttapaikka".to_string(),
             default_center: (24.93545, 60.16952), // Helsinki, Finland
-            default_zoom: 15,
+            default_zoom: 7,
             api_key: "your-key-here".to_string(),
-            min_zoom: 0,
+            min_zoom: 1,
             max_zoom: 15,
         }
     }
