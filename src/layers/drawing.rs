@@ -29,7 +29,7 @@
 //!     }
 //! }
 //! ```
-use crate::layers::{Layer, dist_sq_to_segment, projection_factor, serde_stroke, default_opacity};
+use crate::layers::{Layer, default_opacity, dist_sq_to_segment, projection_factor, serde_stroke};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Painter, Pos2, Response, Stroke};
 use serde::{Deserialize, Serialize};
