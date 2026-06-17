@@ -29,7 +29,7 @@
 //!     }
 //! }
 //! ```
-use crate::layers::{Layer, dist_sq_to_segment, projection_factor, serde_stroke};
+use crate::layers::{Layer, default_opacity, dist_sq_to_segment, projection_factor, serde_stroke};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Color32, Painter, Pos2, Response, Stroke};
 use serde::{Deserialize, Serialize};
@@ -64,6 +64,10 @@ pub struct DrawingLayer {
     /// The current drawing mode.
     #[serde(skip)]
     pub draw_mode: DrawMode,
+
+    /// The opacity of the layer.
+    #[serde(default = "default_opacity")]
+    pub opacity: f32,
 }
 
 impl DrawingLayer {
@@ -108,6 +112,10 @@ impl DrawingLayer {
         foreign_members.insert(
             "layer_id".to_string(),
             serde_json::Value::String(layer_id.to_string()),
+        );
+        foreign_members.insert(
+            "opacity".to_string(),
+            serde_json::Value::from(f64::from(self.opacity)),
         );
 
         let feature_collection = geojson::FeatureCollection {
@@ -188,6 +196,11 @@ impl DrawingLayer {
             {
                 self.stroke.color = color;
             }
+            if let Some(value) = foreign_members.get("opacity")
+                && let Some(opacity) = value.as_f64()
+            {
+                self.opacity = opacity as f32;
+            }
         }
 
         Ok(())
@@ -200,6 +213,7 @@ impl DrawingLayer {
             polylines: Vec::new(),
             stroke,
             draw_mode: DrawMode::default(),
+            opacity: 1.0,
         }
     }
 }
@@ -210,6 +224,7 @@ impl Default for DrawingLayer {
             polylines: Vec::new(),
             stroke: Stroke::new(2.0, Color32::RED),
             draw_mode: DrawMode::default(),
+            opacity: 1.0,
         }
     }
 }
@@ -295,6 +310,14 @@ impl Layer for DrawingLayer {
         self
     }
 
+    fn opacity(&self) -> f32 {
+        self.opacity
+    }
+
+    fn set_opacity(&mut self, opacity: f32) {
+        self.opacity = opacity;
+    }
+
     fn handle_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
         match self.draw_mode {
             DrawMode::Disabled => false,
@@ -308,7 +331,13 @@ impl Layer for DrawingLayer {
             if polyline.0.len() > 1 {
                 let screen_points: Vec<egui::Pos2> =
                     polyline.0.iter().map(|p| projection.project(*p)).collect();
-                painter.add(egui::Shape::line(screen_points, self.stroke));
+                painter.add(egui::Shape::line(
+                    screen_points,
+                    Stroke {
+                        color: self.stroke.color.gamma_multiply(self.opacity),
+                        ..self.stroke
+                    },
+                ));
             }
         }
     }

@@ -15,6 +15,8 @@ pub struct TileLayer {
     /// Color tint applied to the tile images when rendering
     pub tint: Color32,
     config: Box<dyn MapConfig>,
+    /// The opacity of the layer.
+    pub opacity: f32,
 }
 
 impl TileLayer {
@@ -25,6 +27,7 @@ impl TileLayer {
             visible_tiles: Default::default(),
             tint: Color32::WHITE,
             config: Box::new(config),
+            opacity: 1.0,
         }
     }
 }
@@ -36,6 +39,14 @@ impl Layer for TileLayer {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn opacity(&self) -> f32 {
+        self.opacity
+    }
+
+    fn set_opacity(&mut self, opacity: f32) {
+        self.opacity = opacity;
     }
 
     fn handle_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
@@ -53,7 +64,13 @@ impl Layer for TileLayer {
 
     fn draw(&self, painter: &Painter, _: &MapProjection) {
         for (tile_id, tile_pos) in &self.visible_tiles {
-            draw_tile(&self.tiles, painter, tile_id, *tile_pos, self.tint);
+            draw_tile(
+                &self.tiles,
+                painter,
+                tile_id,
+                *tile_pos,
+                self.tint.gamma_multiply(self.opacity),
+            );
         }
     }
 }

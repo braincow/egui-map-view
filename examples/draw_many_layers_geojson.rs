@@ -228,6 +228,10 @@ impl eframe::App for MyApp {
                             egui::Slider::new(&mut drawing_layer.stroke.width, 0.1..=10.0)
                                 .text("Stroke width"),
                         );
+                        ui.add(
+                            egui::Slider::new(&mut drawing_layer.opacity, 0.0..=1.0)
+                                .text("Opacity"),
+                        );
                         ui.horizontal(|ui| {
                             ui.label("Stroke color:");
                             ui.color_edit_button_srgba(&mut drawing_layer.stroke.color);

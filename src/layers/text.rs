@@ -1,6 +1,6 @@
 //! A layer for placing text on the map.
 
-use crate::layers::{Layer, serde_color32};
+use crate::layers::{Layer, default_opacity, serde_color32};
 use crate::projection::{GeoPos, MapProjection};
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Response};
 use serde::{Deserialize, Serialize};
@@ -78,7 +78,6 @@ pub enum TextLayerMode {
 /// Layer implementation that allows placing text on the map.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
-#[derive(Default)]
 pub struct TextLayer {
     texts: Vec<Text>,
 
@@ -96,6 +95,23 @@ pub struct TextLayer {
 
     #[serde(skip)]
     dragged_text_index: Option<usize>,
+
+    /// The opacity of the layer.
+    #[serde(default = "default_opacity")]
+    pub opacity: f32,
+}
+
+impl Default for TextLayer {
+    fn default() -> Self {
+        Self {
+            texts: Vec::new(),
+            mode: TextLayerMode::default(),
+            new_text_properties: Text::default(),
+            editing: None,
+            dragged_text_index: None,
+            opacity: 1.0,
+        }
+    }
 }
 
 impl TextLayer {
@@ -145,10 +161,16 @@ impl TextLayer {
             .into_iter()
             .map(geojson::Feature::from)
             .collect();
+        let mut foreign_members = serde_json::Map::new();
+        foreign_members.insert(
+            "opacity".to_string(),
+            serde_json::Value::from(f64::from(self.opacity)),
+        );
+
         let feature_collection = geojson::FeatureCollection {
             bbox: None,
             features,
-            foreign_members: None,
+            foreign_members: Some(foreign_members),
         };
         serde_json::to_string(&feature_collection)
     }
@@ -163,6 +185,13 @@ impl TextLayer {
             .filter_map(|f| Text::try_from(f).ok())
             .collect();
         self.texts.extend(new_texts);
+
+        if let Some(foreign_members) = feature_collection.foreign_members
+            && let Some(value) = foreign_members.get("opacity")
+                && let Some(opacity) = value.as_f64()
+            {
+                self.opacity = opacity as f32;
+            }
         Ok(())
     }
 
@@ -255,6 +284,14 @@ impl Layer for TextLayer {
         self
     }
 
+    fn opacity(&self) -> f32 {
+        self.opacity
+    }
+
+    fn set_opacity(&mut self, opacity: f32) {
+        self.opacity = opacity;
+    }
+
     fn handle_input(&mut self, response: &Response, projection: &MapProjection) -> bool {
         match self.mode {
             TextLayerMode::Disabled => false,
@@ -270,13 +307,17 @@ impl Layer for TextLayer {
                 // We use the painter's layout function here for drawing.
                 text.text.clone(),
                 FontId::proportional(self.get_font_size(text, projection)),
-                text.color,
+                text.color.gamma_multiply(self.opacity),
             );
 
             let rect =
                 Align2::CENTER_CENTER.anchor_rect(Rect::from_min_size(screen_pos, galley.size()));
 
-            painter.rect_filled(rect.expand(2.0), 3.0, text.background);
+            painter.rect_filled(
+                rect.expand(2.0),
+                3.0,
+                text.background.gamma_multiply(self.opacity),
+            );
             painter.galley(rect.min, galley, Color32::TRANSPARENT);
         }
     }

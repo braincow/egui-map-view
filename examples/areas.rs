@@ -92,7 +92,24 @@ impl eframe::App for MyApp {
                     ui.horizontal(|ui| {
                         ui.radio_value(&mut area_layer.mode, AreaMode::Disabled, "Disabled");
                         ui.radio_value(&mut area_layer.mode, AreaMode::Modify, "Modify");
+                        ui.radio_value(
+                            &mut area_layer.mode,
+                            AreaMode::ModifySelected,
+                            "Modify Selected",
+                        );
                     });
+
+                    if area_layer.mode == AreaMode::ModifySelected {
+                        ui.separator();
+                        if let Some(idx) = area_layer.selected_area {
+                            ui.label(format!("Selected Area Index: {idx}"));
+                            if ui.button("Clear Selection").clicked() {
+                                area_layer.selected_area = None;
+                            }
+                        } else {
+                            ui.label("Click an area to select it");
+                        }
+                    }
                 }
             });
     }
