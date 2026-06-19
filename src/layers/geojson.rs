@@ -101,6 +101,24 @@ impl From<Area> for Feature {
                     properties.insert("points".to_string(), JsonValue::from(p));
                 }
             }
+            AreaShape::Ellipse {
+                center,
+                radius_major,
+                radius_minor,
+                rotation,
+                points,
+            } => {
+                let point = Geometry::new(GeometryValue::Point {
+                    coordinates: geojson::Position::from(vec![center.lon, center.lat]),
+                });
+                feature.geometry = Some(point);
+                properties.insert("radius_major".to_string(), JsonValue::from(radius_major));
+                properties.insert("radius_minor".to_string(), JsonValue::from(radius_minor));
+                properties.insert("rotation".to_string(), JsonValue::from(rotation));
+                if let Some(p) = points {
+                    properties.insert("points".to_string(), JsonValue::from(p));
+                }
+            }
         }
 
         feature.properties = Some(properties);
@@ -143,21 +161,51 @@ impl TryFrom<Feature> for Area {
                         lon: point[0],
                         lat: point[1],
                     };
-                    let radius = properties
-                        .get("radius")
-                        .and_then(serde_json::Value::as_f64)
-                        .unwrap_or_default();
                     let points = properties.get("points").and_then(serde_json::Value::as_i64);
 
-                    if radius <= 0.0 {
-                        return Err("Radius must be greater than 0".to_string());
-                    }
+                    if properties.contains_key("radius_major")
+                        || properties.contains_key("radius_minor")
+                    {
+                        let radius_major = properties
+                            .get("radius_major")
+                            .and_then(serde_json::Value::as_f64)
+                            .unwrap_or_default();
+                        let radius_minor = properties
+                            .get("radius_minor")
+                            .and_then(serde_json::Value::as_f64)
+                            .unwrap_or_default();
+                        let rotation = properties
+                            .get("rotation")
+                            .and_then(serde_json::Value::as_f64)
+                            .unwrap_or_default();
 
-                    Some(AreaShape::Circle {
-                        center,
-                        radius,
-                        points,
-                    })
+                        if radius_major <= 0.0 || radius_minor <= 0.0 {
+                            return Err("Radii must be greater than 0".to_string());
+                        }
+
+                        Some(AreaShape::Ellipse {
+                            center,
+                            radius_major,
+                            radius_minor,
+                            rotation,
+                            points,
+                        })
+                    } else {
+                        let radius = properties
+                            .get("radius")
+                            .and_then(serde_json::Value::as_f64)
+                            .unwrap_or_default();
+
+                        if radius <= 0.0 {
+                            return Err("Radius must be greater than 0".to_string());
+                        }
+
+                        Some(AreaShape::Circle {
+                            center,
+                            radius,
+                            points,
+                        })
+                    }
                 }
                 _ => None,
             }

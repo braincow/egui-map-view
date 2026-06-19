@@ -79,6 +79,19 @@ pub enum AreaShape {
         /// How many points should be used to draw the circle. If None the the point count is determined automatically which might look edged depending on zoom and projection.
         points: Option<i64>,
     },
+    /// An ellipse defined by its center, major and minor radii in meters, and rotation in radians.
+    Ellipse {
+        /// The geographical center of the ellipse.
+        center: GeoPos,
+        /// The semi-major axis (radius) of the ellipse in meters.
+        radius_major: f64,
+        /// The semi-minor axis (radius) of the ellipse in meters.
+        radius_minor: f64,
+        /// The rotation of the ellipse in radians, measured counter-clockwise from the East (positive X-axis).
+        rotation: f64,
+        /// How many points should be used to draw the ellipse. If None, the point count is determined automatically.
+        points: Option<i64>,
+    },
 }
 
 /// How the interior of an area is filled.
@@ -123,6 +136,18 @@ enum DraggedObject {
         area_index: usize,
     },
     CircleRadius {
+        area_index: usize,
+    },
+    EllipseCenter {
+        area_index: usize,
+    },
+    EllipseMajorRadius {
+        area_index: usize,
+    },
+    EllipseMinorRadius {
+        area_index: usize,
+    },
+    EllipseRotation {
         area_index: usize,
     },
 }
@@ -355,9 +380,12 @@ impl AreaLayer {
 
                             // Calculate distance in meters. This is an approximation that works well for smaller distances.
                             let distance_lon = (new_edge_geo.lon - center.lon).abs()
-                                * (111_320.0 * center.lat.to_radians().cos());
+                                * (111_320.0 * center.lat.to_radians().cos().max(1e-6));
                             let distance_lat = (new_edge_geo.lat - center.lat).abs() * 110_574.0;
-                            *radius = (distance_lon.powi(2) + distance_lat.powi(2)).sqrt();
+                            let new_val = (distance_lon.powi(2) + distance_lat.powi(2)).sqrt();
+                            if new_val.is_finite() {
+                                *radius = new_val;
+                            }
                         }
 
                         if let Some(old_radius) = revert_radius
@@ -367,6 +395,135 @@ impl AreaLayer {
                             self.dragged_object = None;
                             if let AreaShape::Circle { radius, .. } = &mut area.shape {
                                 *radius = old_radius;
+                            }
+                        }
+                    }
+                }
+                DraggedObject::EllipseCenter { area_index } => {
+                    if let Some(area) = self.areas.get_mut(area_index) {
+                        let mut revert_center = None;
+                        if let AreaShape::Ellipse { center, .. } = &mut area.shape {
+                            revert_center = Some(*center);
+                            *center = projection.unproject(pointer_pos);
+                        }
+
+                        if let Some(old_center) = revert_center
+                            && !area.can_triangulate(projection)
+                        {
+                            warn!("Triangulation failed, cancelling drag");
+                            self.dragged_object = None;
+                            if let AreaShape::Ellipse { center, .. } = &mut area.shape {
+                                *center = old_center;
+                            }
+                        }
+                    }
+                }
+                DraggedObject::EllipseMajorRadius { area_index } => {
+                    if let Some(area) = self.areas.get_mut(area_index) {
+                        let mut revert_radius_major = None;
+                        if let AreaShape::Ellipse {
+                            center,
+                            radius_major,
+                            rotation,
+                            ..
+                        } = &mut area.shape
+                        {
+                            revert_radius_major = Some(*radius_major);
+                            let center_screen = projection.project(*center);
+                            let cos_rot = rotation.cos() as f32;
+                            let sin_rot = rotation.sin() as f32;
+                            let v_major = egui::vec2(cos_rot, sin_rot);
+                            let new_radius_pixels =
+                                (pointer_pos - center_screen).dot(v_major).max(1.0);
+                            let new_edge_screen =
+                                center_screen + egui::vec2(new_radius_pixels, 0.0);
+                            let new_edge_geo = projection.unproject(new_edge_screen);
+                            let distance_lon = (new_edge_geo.lon - center.lon).abs()
+                                * (111_320.0 * center.lat.to_radians().cos().max(1e-6));
+                            let distance_lat = (new_edge_geo.lat - center.lat).abs() * 110_574.0;
+                            let new_val = (distance_lon.powi(2) + distance_lat.powi(2)).sqrt();
+                            if new_val.is_finite() {
+                                *radius_major = new_val;
+                            }
+                        }
+
+                        if let Some(old_radius) = revert_radius_major
+                            && !area.can_triangulate(projection)
+                        {
+                            warn!("Triangulation failed, cancelling drag");
+                            self.dragged_object = None;
+                            if let AreaShape::Ellipse { radius_major, .. } = &mut area.shape {
+                                *radius_major = old_radius;
+                            }
+                        }
+                    }
+                }
+                DraggedObject::EllipseMinorRadius { area_index } => {
+                    if let Some(area) = self.areas.get_mut(area_index) {
+                        let mut revert_radius_minor = None;
+                        if let AreaShape::Ellipse {
+                            center,
+                            radius_minor,
+                            rotation,
+                            ..
+                        } = &mut area.shape
+                        {
+                            revert_radius_minor = Some(*radius_minor);
+                            let center_screen = projection.project(*center);
+                            let cos_rot = rotation.cos() as f32;
+                            let sin_rot = rotation.sin() as f32;
+                            let v_minor = egui::vec2(-sin_rot, cos_rot);
+                            let new_radius_pixels =
+                                (pointer_pos - center_screen).dot(v_minor).max(1.0);
+                            let new_edge_screen =
+                                center_screen + egui::vec2(new_radius_pixels, 0.0);
+                            let new_edge_geo = projection.unproject(new_edge_screen);
+                            let distance_lon = (new_edge_geo.lon - center.lon).abs()
+                                * (111_320.0 * center.lat.to_radians().cos().max(1e-6));
+                            let distance_lat = (new_edge_geo.lat - center.lat).abs() * 110_574.0;
+                            let new_val = (distance_lon.powi(2) + distance_lat.powi(2)).sqrt();
+                            if new_val.is_finite() {
+                                *radius_minor = new_val;
+                            }
+                        }
+
+                        if let Some(old_radius) = revert_radius_minor
+                            && !area.can_triangulate(projection)
+                        {
+                            warn!("Triangulation failed, cancelling drag");
+                            self.dragged_object = None;
+                            if let AreaShape::Ellipse { radius_minor, .. } = &mut area.shape {
+                                *radius_minor = old_radius;
+                            }
+                        }
+                    }
+                }
+                DraggedObject::EllipseRotation { area_index } => {
+                    if let Some(area) = self.areas.get_mut(area_index) {
+                        let mut revert_rotation = None;
+                        if let AreaShape::Ellipse {
+                            center, rotation, ..
+                        } = &mut area.shape
+                        {
+                            revert_rotation = Some(*rotation);
+                            let center_screen = projection.project(*center);
+                            let new_val = f64::from(
+                                (pointer_pos - center_screen)
+                                    .y
+                                    .atan2((pointer_pos - center_screen).x),
+                            );
+                            if new_val.is_finite() {
+                                *rotation = new_val;
+                            }
+                        }
+
+                        if let Some(old_rotation) = revert_rotation
+                            && !area.can_triangulate(projection)
+                        {
+                            warn!("Triangulation failed, cancelling drag");
+                            self.dragged_object = None;
+                            if let AreaShape::Ellipse { rotation, .. } = &mut area.shape {
+                                *rotation = old_rotation;
                             }
                         }
                     }
@@ -424,7 +581,8 @@ impl AreaLayer {
 
                     // Convert radius from meters to screen pixels to correctly detect handle clicks.
                     let point_on_circle_geo = GeoPos {
-                        lon: center.lon + (radius / (111_320.0 * center.lat.to_radians().cos())),
+                        lon: center.lon
+                            + (radius / (111_320.0 * center.lat.to_radians().cos().max(1e-6))),
                         lat: center.lat,
                     };
                     let point_on_circle_screen = projection.project(point_on_circle_geo);
@@ -442,6 +600,73 @@ impl AreaLayer {
                     // Check for center
                     if center_screen.distance_sq(screen_pos) < click_tolerance_sq {
                         return Some(DraggedObject::CircleCenter {
+                            area_index: area_idx,
+                        });
+                    }
+                }
+                AreaShape::Ellipse {
+                    center,
+                    radius_major,
+                    radius_minor,
+                    rotation,
+                    points: _,
+                } => {
+                    let center_geo = *center;
+                    let point_on_major_geo = GeoPos {
+                        lon: center_geo.lon
+                            + (radius_major
+                                / (111_320.0 * center_geo.lat.to_radians().cos().max(1e-6))),
+                        lat: center_geo.lat,
+                    };
+                    let point_on_minor_geo = GeoPos {
+                        lon: center_geo.lon,
+                        lat: center_geo.lat + (radius_minor / 110_574.0),
+                    };
+                    let center_screen = projection.project(center_geo);
+                    let point_on_major_screen = projection.project(point_on_major_geo);
+                    let point_on_minor_screen = projection.project(point_on_minor_geo);
+                    let radius_major_pixels = center_screen.distance(point_on_major_screen);
+                    let radius_minor_pixels = center_screen.distance(point_on_minor_screen);
+
+                    let cos_rot = rotation.cos() as f32;
+                    let sin_rot = rotation.sin() as f32;
+
+                    // Rotation Handle: checked first
+                    let rotation_handle_pos = center_screen
+                        + egui::vec2(
+                            (radius_major_pixels + 20.0) * cos_rot,
+                            (radius_major_pixels + 20.0) * sin_rot,
+                        );
+                    if rotation_handle_pos.distance_sq(screen_pos) < click_tolerance_sq {
+                        return Some(DraggedObject::EllipseRotation {
+                            area_index: area_idx,
+                        });
+                    }
+
+                    // Major Radius Handle
+                    let major_handle_pos = center_screen
+                        + egui::vec2(radius_major_pixels * cos_rot, radius_major_pixels * sin_rot);
+                    if major_handle_pos.distance_sq(screen_pos) < click_tolerance_sq {
+                        return Some(DraggedObject::EllipseMajorRadius {
+                            area_index: area_idx,
+                        });
+                    }
+
+                    // Minor Radius Handle
+                    let minor_handle_pos = center_screen
+                        + egui::vec2(
+                            -radius_minor_pixels * sin_rot,
+                            radius_minor_pixels * cos_rot,
+                        );
+                    if minor_handle_pos.distance_sq(screen_pos) < click_tolerance_sq {
+                        return Some(DraggedObject::EllipseMinorRadius {
+                            area_index: area_idx,
+                        });
+                    }
+
+                    // Center Handle
+                    if center_screen.distance_sq(screen_pos) < click_tolerance_sq {
+                        return Some(DraggedObject::EllipseCenter {
                             area_index: area_idx,
                         });
                     }
@@ -592,7 +817,7 @@ impl Area {
                 let center_geo = *center;
                 let point_on_circle_geo = GeoPos {
                     lon: center_geo.lon
-                        + (radius / (111_320.0 * center_geo.lat.to_radians().cos())),
+                        + (radius / (111_320.0 * center_geo.lat.to_radians().cos().max(1e-6))),
                     lat: center_geo.lat,
                 };
                 let center_screen = projection.project(center_geo);
@@ -606,6 +831,7 @@ impl Area {
                     // to ensure it looks smooth.
                     (f64::from(radius_pixels) * 2.0 * std::f64::consts::PI / 10.0).ceil() as i64
                 };
+                let num_points = num_points.max(3);
                 let mut circle_points = Vec::with_capacity(num_points as usize);
 
                 for i in 0..num_points {
@@ -619,6 +845,52 @@ impl Area {
                 }
                 circle_points
             }
+            AreaShape::Ellipse {
+                center,
+                radius_major,
+                radius_minor,
+                rotation,
+                points,
+            } => {
+                let center_geo = *center;
+                let point_on_major_geo = GeoPos {
+                    lon: center_geo.lon
+                        + (radius_major
+                            / (111_320.0 * center_geo.lat.to_radians().cos().max(1e-6))),
+                    lat: center_geo.lat,
+                };
+                let point_on_minor_geo = GeoPos {
+                    lon: center_geo.lon,
+                    lat: center_geo.lat + (radius_minor / 110_574.0),
+                };
+                let center_screen = projection.project(center_geo);
+                let point_on_major_screen = projection.project(point_on_major_geo);
+                let point_on_minor_screen = projection.project(point_on_minor_geo);
+                let radius_major_pixels = center_screen.distance(point_on_major_screen);
+                let radius_minor_pixels = center_screen.distance(point_on_minor_screen);
+
+                let num_points = if let Some(points) = points {
+                    *points
+                } else {
+                    let max_radius = radius_major_pixels.max(radius_minor_pixels);
+                    (f64::from(max_radius) * 2.0 * std::f64::consts::PI / 10.0).ceil() as i64
+                };
+                let num_points = num_points.max(3);
+                let mut ellipse_points = Vec::with_capacity(num_points as usize);
+                let cos_rot = rotation.cos();
+                let sin_rot = rotation.sin();
+
+                for i in 0..num_points {
+                    let angle = (i as f64 / num_points as f64) * 2.0 * std::f64::consts::PI;
+                    let dx = f64::from(radius_major_pixels) * angle.cos();
+                    let dy = f64::from(radius_minor_pixels) * angle.sin();
+                    let rx = dx * cos_rot - dy * sin_rot;
+                    let ry = dx * sin_rot + dy * cos_rot;
+                    let point_screen = center_screen + egui::vec2(rx as f32, ry as f32);
+                    ellipse_points.push(projection.unproject(point_screen));
+                }
+                ellipse_points
+            }
         }
     }
 
@@ -628,12 +900,54 @@ impl Area {
             AreaShape::Circle { center, radius, .. } => {
                 let center_screen = projection.project(*center);
                 let point_on_circle_geo = GeoPos {
-                    lon: center.lon + (radius / (111_320.0 * center.lat.to_radians().cos())),
+                    lon: center.lon
+                        + (radius / (111_320.0 * center.lat.to_radians().cos().max(1e-6))),
                     lat: center.lat,
                 };
                 let point_on_circle_screen = projection.project(point_on_circle_geo);
                 let radius_pixels = center_screen.distance(point_on_circle_screen);
+                if radius_pixels <= 0.0 {
+                    return false;
+                }
                 center_screen.distance_sq(pos) <= radius_pixels.powi(2)
+            }
+            AreaShape::Ellipse {
+                center,
+                radius_major,
+                radius_minor,
+                rotation,
+                ..
+            } => {
+                let center_geo = *center;
+                let point_on_major_geo = GeoPos {
+                    lon: center_geo.lon
+                        + (radius_major
+                            / (111_320.0 * center_geo.lat.to_radians().cos().max(1e-6))),
+                    lat: center_geo.lat,
+                };
+                let point_on_minor_geo = GeoPos {
+                    lon: center_geo.lon,
+                    lat: center_geo.lat + (radius_minor / 110_574.0),
+                };
+                let center_screen = projection.project(center_geo);
+                let point_on_major_screen = projection.project(point_on_major_geo);
+                let point_on_minor_screen = projection.project(point_on_minor_geo);
+                let radius_major_pixels = center_screen.distance(point_on_major_screen);
+                let radius_minor_pixels = center_screen.distance(point_on_minor_screen);
+
+                if radius_major_pixels <= 0.0 || radius_minor_pixels <= 0.0 {
+                    return false;
+                }
+
+                let v = pos - center_screen;
+                let cos_rot = rotation.cos() as f32;
+                let sin_rot = rotation.sin() as f32;
+                let local_x = v.x * cos_rot + v.y * sin_rot;
+                let local_y = -v.x * sin_rot + v.y * cos_rot;
+
+                let rx_f64 = f64::from(radius_major_pixels);
+                let ry_f64 = f64::from(radius_minor_pixels);
+                (f64::from(local_x) / rx_f64).powi(2) + (f64::from(local_y) / ry_f64).powi(2) <= 1.0
             }
             AreaShape::Polygon(_) => {
                 let points = self.get_points(projection);
@@ -926,7 +1240,7 @@ impl Layer for AreaLayer {
                         // Convert radius from meters to screen pixels to correctly position the handle.
                         let point_on_circle_geo = GeoPos {
                             lon: center.lon
-                                + (radius / (111_320.0 * center.lat.to_radians().cos())),
+                                + (radius / (111_320.0 * center.lat.to_radians().cos().max(1e-6))),
                             lat: center.lat,
                         };
                         let point_on_circle_screen = projection.project(point_on_circle_geo);
@@ -962,6 +1276,123 @@ impl Layer for AreaLayer {
                         {
                             painter.circle_stroke(
                                 radius_handle_pos,
+                                self.node_radius * 2.0,
+                                Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                            );
+                        }
+                    }
+                    AreaShape::Ellipse {
+                        center,
+                        radius_major,
+                        radius_minor,
+                        rotation,
+                        points: _,
+                    } => {
+                        let center_screen = projection.project(*center);
+
+                        let point_on_major_geo = GeoPos {
+                            lon: center.lon
+                                + (radius_major
+                                    / (111_320.0 * center.lat.to_radians().cos().max(1e-6))),
+                            lat: center.lat,
+                        };
+                        let point_on_minor_geo = GeoPos {
+                            lon: center.lon,
+                            lat: center.lat + (radius_minor / 110_574.0),
+                        };
+                        let point_on_major_screen = projection.project(point_on_major_geo);
+                        let point_on_minor_screen = projection.project(point_on_minor_geo);
+                        let radius_major_pixels = center_screen.distance(point_on_major_screen);
+                        let radius_minor_pixels = center_screen.distance(point_on_minor_screen);
+
+                        let cos_rot = rotation.cos() as f32;
+                        let sin_rot = rotation.sin() as f32;
+
+                        let major_handle_pos = center_screen
+                            + egui::vec2(
+                                radius_major_pixels * cos_rot,
+                                radius_major_pixels * sin_rot,
+                            );
+                        let minor_handle_pos = center_screen
+                            + egui::vec2(
+                                -radius_minor_pixels * sin_rot,
+                                radius_minor_pixels * cos_rot,
+                            );
+                        let rotation_handle_pos = center_screen
+                            + egui::vec2(
+                                (radius_major_pixels + 20.0) * cos_rot,
+                                (radius_major_pixels + 20.0) * sin_rot,
+                            );
+
+                        // Draw connection line between major handle and rotation handle.
+                        painter.line_segment(
+                            [major_handle_pos, rotation_handle_pos],
+                            Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                        );
+
+                        // 1. Center
+                        painter.circle_filled(
+                            center_screen,
+                            self.node_radius,
+                            self.node_fill.gamma_multiply(self.opacity),
+                        );
+                        if let Some(DraggedObject::EllipseCenter { area_index }) =
+                            self.hovered_object
+                            && area_index == area_idx
+                        {
+                            painter.circle_stroke(
+                                center_screen,
+                                self.node_radius * 3.0,
+                                Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                            );
+                        }
+
+                        // 2. Major radius
+                        painter.circle_filled(
+                            major_handle_pos,
+                            self.node_radius,
+                            self.node_fill.gamma_multiply(self.opacity),
+                        );
+                        if let Some(DraggedObject::EllipseMajorRadius { area_index }) =
+                            self.hovered_object
+                            && area_index == area_idx
+                        {
+                            painter.circle_stroke(
+                                major_handle_pos,
+                                self.node_radius * 2.0,
+                                Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                            );
+                        }
+
+                        // 3. Minor radius
+                        painter.circle_filled(
+                            minor_handle_pos,
+                            self.node_radius,
+                            self.node_fill.gamma_multiply(self.opacity),
+                        );
+                        if let Some(DraggedObject::EllipseMinorRadius { area_index }) =
+                            self.hovered_object
+                            && area_index == area_idx
+                        {
+                            painter.circle_stroke(
+                                minor_handle_pos,
+                                self.node_radius * 2.0,
+                                Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                            );
+                        }
+
+                        // 4. Rotation
+                        painter.circle_filled(
+                            rotation_handle_pos,
+                            self.node_radius,
+                            self.node_fill.gamma_multiply(self.opacity),
+                        );
+                        if let Some(DraggedObject::EllipseRotation { area_index }) =
+                            self.hovered_object
+                            && area_index == area_idx
+                        {
+                            painter.circle_stroke(
+                                rotation_handle_pos,
                                 self.node_radius * 2.0,
                                 Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
                             );
@@ -1177,6 +1608,81 @@ mod tests {
             assert_eq!(new_layer.areas.len(), 1);
             assert_eq!(layer.areas[0].shape, new_layer.areas[0].shape);
         }
+
+        #[test]
+        fn area_layer_geojson_ellipse() {
+            let mut layer = AreaLayer::default();
+            layer.add_area(Area {
+                shape: AreaShape::Ellipse {
+                    center: (10.0, 20.0).into(),
+                    radius_major: 2000.0,
+                    radius_minor: 1000.0,
+                    rotation: 0.78,
+                    points: Some(32),
+                },
+                stroke: Default::default(),
+                fill: Default::default(),
+                fill_type: Default::default(),
+            });
+
+            let geojson_str = layer.to_geojson_str().unwrap();
+            let mut new_layer = AreaLayer::default();
+            new_layer.from_geojson_str(&geojson_str).unwrap();
+
+            assert_eq!(new_layer.areas.len(), 1);
+            assert_eq!(layer.areas[0].shape, new_layer.areas[0].shape);
+        }
+    }
+
+    #[test]
+    fn ellipse_get_points_with_fixed_number() {
+        let projection = dummy_projection();
+        let area = Area {
+            shape: AreaShape::Ellipse {
+                center: (0.0, 0.0).into(),
+                radius_major: 2000.0,
+                radius_minor: 1000.0,
+                rotation: 0.5,
+                points: Some(24),
+            },
+            stroke: Default::default(),
+            fill: Default::default(),
+            fill_type: Default::default(),
+        };
+
+        let points = area.get_points(&projection);
+        assert_eq!(points.len(), 24);
+    }
+
+    #[test]
+    fn ellipse_containment() {
+        let projection = dummy_projection();
+        let area = Area {
+            shape: AreaShape::Ellipse {
+                center: (0.0, 0.0).into(),
+                radius_major: 2000.0,
+                radius_minor: 1000.0,
+                rotation: 0.0,
+                points: None,
+            },
+            stroke: Default::default(),
+            fill: Default::default(),
+            fill_type: Default::default(),
+        };
+
+        // Center is inside
+        assert!(area.contains(projection.project((0.0, 0.0).into()), &projection));
+
+        // Slightly to the East (lon changes) should be inside
+        let point_inside = GeoPos {
+            lon: 0.005,
+            lat: 0.0,
+        };
+        assert!(area.contains(projection.project(point_inside), &projection));
+
+        // Very far to the East (lon changes) should be outside
+        let point_outside = GeoPos { lon: 0.5, lat: 0.0 };
+        assert!(!area.contains(projection.project(point_outside), &projection));
     }
 
     #[test]

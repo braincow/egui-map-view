@@ -69,6 +69,20 @@ impl Default for MyApp {
             fill_type: FillType::None,
         });
 
+        // Rotated Ellipse with solid fill
+        area_layer.add_area(Area {
+            shape: Ellipse {
+                center: (center_lon, center_lat - 2.5).into(),
+                radius_major: 250000.0,
+                radius_minor: 100000.0,
+                rotation: 45.0f64.to_radians(),
+                points: None,
+            },
+            stroke: Stroke::new(2.0, Color32::from_rgb(255, 165, 0)),
+            fill: Color32::from_rgba_unmultiplied(255, 165, 0, 50),
+            fill_type: FillType::Solid,
+        });
+
         map.add_layer("areas", area_layer);
         Self { map }
     }
