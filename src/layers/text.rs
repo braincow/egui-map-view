@@ -188,10 +188,10 @@ impl TextLayer {
 
         if let Some(foreign_members) = feature_collection.foreign_members
             && let Some(value) = foreign_members.get("opacity")
-                && let Some(opacity) = value.as_f64()
-            {
-                self.opacity = opacity as f32;
-            }
+            && let Some(opacity) = value.as_f64()
+        {
+            self.opacity = opacity as f32;
+        }
         Ok(())
     }
 
@@ -360,8 +360,10 @@ mod tests {
 
     #[test]
     fn text_layer_serde() {
-        let mut layer = TextLayer::default();
-        layer.mode = TextLayerMode::Modify; // This should not be serialized.
+        let mut layer = TextLayer {
+            mode: TextLayerMode::Modify,
+            ..TextLayer::default()
+        };
         layer.texts.push(Text {
             text: "Hello".to_string(),
             pos: GeoPos { lon: 1.0, lat: 2.0 },

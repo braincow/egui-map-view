@@ -53,14 +53,12 @@ impl MyApp {
             let mut all_features = Vec::new();
 
             for key in self.map.layers().keys() {
-                if let Some(layer) = self.map.layer::<DrawingLayer>(key) {
-                    if let Ok(json_str) = layer.to_geojson_str(key) {
-                        if let Ok(collection) =
-                            serde_json::from_str::<geojson::FeatureCollection>(&json_str)
-                        {
-                            all_features.extend(collection.features);
-                        }
-                    }
+                if let Some(layer) = self.map.layer::<DrawingLayer>(key)
+                    && let Ok(json_str) = layer.to_geojson_str(key)
+                    && let Ok(collection) =
+                        serde_json::from_str::<geojson::FeatureCollection>(&json_str)
+                {
+                    all_features.extend(collection.features);
                 }
             }
 
@@ -97,12 +95,11 @@ impl MyApp {
                         Ok(collection) => {
                             let mut layer_ids = HashSet::new();
                             for feature in &collection.features {
-                                if let Some(properties) = &feature.properties {
-                                    if let Some(id_val) = properties.get("layer_id") {
-                                        if let Some(id) = id_val.as_str() {
-                                            layer_ids.insert(id.to_string());
-                                        }
-                                    }
+                                if let Some(properties) = &feature.properties
+                                    && let Some(id_val) = properties.get("layer_id")
+                                    && let Some(id) = id_val.as_str()
+                                {
+                                    layer_ids.insert(id.to_string());
                                 }
                             }
 
@@ -115,11 +112,11 @@ impl MyApp {
 
                             // Load data into layers
                             for id in layer_ids {
-                                if let Some(layer) = self.map.layer_mut::<DrawingLayer>(&id) {
-                                    if let Err(err) = layer.from_geojson_str(&json_str, Some(&id)) {
-                                        self.error_message =
-                                            Some(format!("Error loading layer {}: {}", id, err));
-                                    }
+                                if let Some(layer) = self.map.layer_mut::<DrawingLayer>(&id)
+                                    && let Err(err) = layer.from_geojson_str(&json_str, Some(&id))
+                                {
+                                    self.error_message =
+                                        Some(format!("Error loading layer {}: {}", id, err));
                                 }
                             }
                             self.error_message = None;
@@ -168,7 +165,7 @@ impl eframe::App for MyApp {
                 {
                     self.map
                         .layer::<DrawingLayer>(selected_key)
-                        .map_or(true, |l| l.draw_mode == DrawMode::Disabled)
+                        .is_none_or(|l| l.draw_mode == DrawMode::Disabled)
                 } else {
                     true
                 };
@@ -210,33 +207,32 @@ impl eframe::App for MyApp {
 
                 ui.separator();
 
-                if let Some(selected_key) = self.selected_layer_key.clone() {
-                    if let Some(drawing_layer) = self.map.layer_mut::<DrawingLayer>(&selected_key) {
-                        ui.label(format!("Controls for '{}'", selected_key));
-                        ui.label("Mode");
-                        ui.horizontal(|ui| {
-                            ui.radio_value(
-                                &mut drawing_layer.draw_mode,
-                                DrawMode::Disabled,
-                                "Disabled",
-                            );
-                            ui.radio_value(&mut drawing_layer.draw_mode, DrawMode::Draw, "Draw");
-                            ui.radio_value(&mut drawing_layer.draw_mode, DrawMode::Erase, "Erase");
-                        });
+                if let Some(selected_key) = self.selected_layer_key.clone()
+                    && let Some(drawing_layer) = self.map.layer_mut::<DrawingLayer>(&selected_key)
+                {
+                    ui.label(format!("Controls for '{}'", selected_key));
+                    ui.label("Mode");
+                    ui.horizontal(|ui| {
+                        ui.radio_value(
+                            &mut drawing_layer.draw_mode,
+                            DrawMode::Disabled,
+                            "Disabled",
+                        );
+                        ui.radio_value(&mut drawing_layer.draw_mode, DrawMode::Draw, "Draw");
+                        ui.radio_value(&mut drawing_layer.draw_mode, DrawMode::Erase, "Erase");
+                    });
 
-                        ui.add(
-                            egui::Slider::new(&mut drawing_layer.stroke.width, 0.1..=10.0)
-                                .text("Stroke width"),
-                        );
-                        ui.add(
-                            egui::Slider::new(&mut drawing_layer.opacity, 0.0..=1.0)
-                                .text("Opacity"),
-                        );
-                        ui.horizontal(|ui| {
-                            ui.label("Stroke color:");
-                            ui.color_edit_button_srgba(&mut drawing_layer.stroke.color);
-                        });
-                    }
+                    ui.add(
+                        egui::Slider::new(&mut drawing_layer.stroke.width, 0.1..=10.0)
+                            .text("Stroke width"),
+                    );
+                    ui.add(
+                        egui::Slider::new(&mut drawing_layer.opacity, 0.0..=1.0).text("Opacity"),
+                    );
+                    ui.horizontal(|ui| {
+                        ui.label("Stroke color:");
+                        ui.color_edit_button_srgba(&mut drawing_layer.stroke.color);
+                    });
                 }
             });
     }

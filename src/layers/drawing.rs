@@ -440,13 +440,15 @@ mod tests {
 
     #[test]
     fn drawing_layer_serde() {
-        let mut layer = DrawingLayer::default();
-        layer.draw_mode = DrawMode::Draw; // This should not be serialized.
+        let mut layer = DrawingLayer {
+            draw_mode: DrawMode::Draw,
+            stroke: Stroke::new(5.0, Color32::BLUE),
+            ..DrawingLayer::default()
+        };
         layer.polylines.push(Polyline(vec![
             GeoPos { lon: 1.0, lat: 2.0 },
             GeoPos { lon: 3.0, lat: 4.0 },
         ]));
-        layer.stroke = Stroke::new(5.0, Color32::BLUE); // This should not be serialized.
 
         let json = serde_json::to_string(&layer).unwrap();
 

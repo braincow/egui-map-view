@@ -158,7 +158,9 @@ impl Map {
     /// * `config` - A type that implements `MapConfig`, which provides configuration for the map.
     pub fn new<C: MapConfig + 'static>(config: C) -> Self {
         let center = GeoPos::from(config.default_center());
-        let zoom = config.default_zoom();
+        let min_zoom = config.min_zoom();
+        let max_zoom = config.max_zoom().max(min_zoom);
+        let zoom = config.default_zoom().clamp(min_zoom, max_zoom);
         Self {
             tiles: HashMap::new(),
             mouse_pos: None,
@@ -249,7 +251,9 @@ impl Map {
         if response.double_clicked()
             && let Some(pointer_pos) = response.interact_pointer_pos()
         {
-            let new_zoom = (self.zoom + 1).clamp(MIN_ZOOM, MAX_ZOOM);
+            let min_zoom = self.config.min_zoom();
+            let max_zoom = self.config.max_zoom().max(min_zoom);
+            let new_zoom = (self.zoom + 1).clamp(min_zoom, max_zoom);
 
             if new_zoom != self.zoom {
                 // Determine the geo-coordinate under the mouse cursor before the zoom
@@ -292,9 +296,11 @@ impl Map {
 
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll != 0.0 {
+                let min_zoom = self.config.min_zoom();
+                let max_zoom = self.config.max_zoom().max(min_zoom);
                 let old_zoom = self.zoom;
                 let mut new_zoom = (i32::from(self.zoom) + scroll.signum() as i32)
-                    .clamp(i32::from(MIN_ZOOM), i32::from(MAX_ZOOM))
+                    .clamp(i32::from(min_zoom), i32::from(max_zoom))
                     as u8;
 
                 // If we are zooming out, check if the new zoom level is valid.
@@ -815,5 +821,13 @@ mod tests {
         assert_eq!(map.zoom, default_zoom);
         assert!(map.mouse_pos.is_none());
         assert!(map.tiles.is_empty());
+    }
+
+    #[test]
+    #[cfg(feature = "openstreetmap")]
+    fn test_map_invalid_zoom_limits() {
+        let config = OpenStreetMapConfig::default().min_zoom(15).max_zoom(5);
+        let map = Map::new(config);
+        assert_eq!(map.zoom, 15);
     }
 }

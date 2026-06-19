@@ -43,10 +43,10 @@ impl eframe::App for MyApp {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label("right to map");
                     // The map widget will take up all the remaining space.
-                    if ui.add_sized(ui.available_size(), &mut self.map).clicked() {
-                        if let Some(pos) = self.map.mouse_pos {
-                            println!("{},{}", pos.lon, pos.lat);
-                        }
+                    if ui.add_sized(ui.available_size(), &mut self.map).clicked()
+                        && let Some(pos) = self.map.mouse_pos
+                    {
+                        println!("{},{}", pos.lon, pos.lat);
                     }
                 });
             });

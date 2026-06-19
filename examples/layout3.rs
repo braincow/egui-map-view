@@ -38,10 +38,10 @@ impl eframe::App for MyApp {
             ui.label(self.map.zoom.to_string());
 
             ui.horizontal(|ui| {
-                if ui.add(&mut self.map).clicked() {
-                    if let Some(pos) = self.map.mouse_pos {
-                        println!("{},{}", pos.lon, pos.lat);
-                    }
+                if ui.add(&mut self.map).clicked()
+                    && let Some(pos) = self.map.mouse_pos
+                {
+                    println!("{},{}", pos.lon, pos.lat);
                 }
                 ui.label("right to map")
             });

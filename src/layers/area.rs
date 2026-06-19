@@ -234,10 +234,10 @@ impl AreaLayer {
 
         if let Some(foreign_members) = feature_collection.foreign_members
             && let Some(value) = foreign_members.get("opacity")
-                && let Some(opacity) = value.as_f64()
-            {
-                self.opacity = opacity as f32;
-            }
+            && let Some(opacity) = value.as_f64()
+        {
+            self.opacity = opacity as f32;
+        }
         Ok(())
     }
 
@@ -905,16 +905,15 @@ impl Layer for AreaLayer {
                                 area_index,
                                 node_index,
                             }) = self.hovered_object
-                                && area_index == area_idx && node_index == node_idx {
-                                    painter.circle_stroke(
-                                        *point,
-                                        self.node_radius * 3.0,
-                                        Stroke::new(
-                                            1.0,
-                                            self.node_fill.gamma_multiply(self.opacity),
-                                        ),
-                                    );
-                                }
+                                && area_index == area_idx
+                                && node_index == node_idx
+                            {
+                                painter.circle_stroke(
+                                    *point,
+                                    self.node_radius * 3.0,
+                                    Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                );
+                            }
                         }
                     }
                     AreaShape::Circle {
@@ -941,13 +940,14 @@ impl Layer for AreaLayer {
 
                         if let Some(DraggedObject::CircleCenter { area_index }) =
                             self.hovered_object
-                            && area_index == area_idx {
-                                painter.circle_stroke(
-                                    center_screen,
-                                    self.node_radius * 3.0,
-                                    Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
-                                );
-                            }
+                            && area_index == area_idx
+                        {
+                            painter.circle_stroke(
+                                center_screen,
+                                self.node_radius * 3.0,
+                                Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                            );
+                        }
 
                         let radius_handle_pos = center_screen + egui::vec2(radius_pixels, 0.0);
                         painter.circle_filled(
@@ -958,13 +958,14 @@ impl Layer for AreaLayer {
 
                         if let Some(DraggedObject::CircleRadius { area_index }) =
                             self.hovered_object
-                            && area_index == area_idx {
-                                painter.circle_stroke(
-                                    radius_handle_pos,
-                                    self.node_radius * 2.0,
-                                    Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
-                                );
-                            }
+                            && area_index == area_idx
+                        {
+                            painter.circle_stroke(
+                                radius_handle_pos,
+                                self.node_radius * 2.0,
+                                Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                            );
+                        }
                     }
                 }
             }
