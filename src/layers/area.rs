@@ -1125,7 +1125,11 @@ impl Layer for AreaLayer {
                     // Find if any area was clicked to select it.
                     let clicked_area_idx =
                         self.areas.iter().enumerate().rev().find_map(|(idx, area)| {
-                            if area.contains(pointer_pos, projection) {
+                            let contains_fill = area.contains(pointer_pos, projection);
+                            let over_handle = self.find_object_at(pointer_pos, projection, Some(idx)).is_some();
+                            let over_segment = self.find_line_segment_at(pointer_pos, projection, Some(idx)).is_some();
+
+                            if contains_fill || over_handle || over_segment {
                                 Some(idx)
                             } else {
                                 None
