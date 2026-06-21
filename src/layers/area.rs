@@ -589,9 +589,8 @@ impl AreaLayer {
                     let radius_pixels = center_screen.distance(point_on_circle_screen);
 
                     // Check for radius handle
-                    let distance_to_edge =
-                        (center_screen.distance(screen_pos) - radius_pixels).abs();
-                    if distance_to_edge < self.node_radius * 2.0 {
+                    let radius_handle_pos = center_screen + egui::vec2(radius_pixels, 0.0);
+                    if radius_handle_pos.distance_sq(screen_pos) < click_tolerance_sq {
                         return Some(DraggedObject::CircleRadius {
                             area_index: area_idx,
                         });
