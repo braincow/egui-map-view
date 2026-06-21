@@ -102,7 +102,7 @@ pub enum FillType {
     /// Solid color fill.
     #[default]
     Solid,
-    /// Diagonal hatching lines using the stroke style.
+    /// Diagonal hatching lines using the fill color and stroke width.
     Hatching,
 }
 
@@ -1220,8 +1220,8 @@ impl Layer for AreaLayer {
                             painter.line_segment(
                                 [a, b],
                                 Stroke {
-                                    color: area.stroke.color.gamma_multiply(self.opacity),
-                                    ..area.stroke
+                                    width: area.stroke.width,
+                                    color: area.fill.gamma_multiply(self.opacity),
                                 },
                             );
                         }
