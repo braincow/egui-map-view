@@ -536,11 +536,37 @@ impl AreaLayer {
         }
 
         let is_dragging = self.dragged_object.is_some();
+        let active_object = self.dragged_object.as_ref().or(self.hovered_object.as_ref());
 
-        if is_dragging {
-            response.ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
-        } else if self.hovered_object.is_some() {
-            response.ctx.set_cursor_icon(egui::CursorIcon::Grab);
+        if let Some(obj) = active_object {
+            let cursor = match obj {
+                DraggedObject::PolygonNode { .. }
+                | DraggedObject::CircleCenter { .. }
+                | DraggedObject::EllipseCenter { .. } => {
+                    if is_dragging {
+                        egui::CursorIcon::Grabbing
+                    } else {
+                        egui::CursorIcon::Move
+                    }
+                }
+                DraggedObject::CircleRadius { .. }
+                | DraggedObject::EllipseMajorRadius { .. }
+                | DraggedObject::EllipseMinorRadius { .. } => {
+                    if is_dragging {
+                        egui::CursorIcon::Grabbing
+                    } else {
+                        egui::CursorIcon::ResizeHorizontal
+                    }
+                }
+                DraggedObject::EllipseRotation { .. } => {
+                    if is_dragging {
+                        egui::CursorIcon::Grabbing
+                    } else {
+                        egui::CursorIcon::Crosshair
+                    }
+                }
+            };
+            response.ctx.set_cursor_icon(cursor);
         }
 
         is_dragging || (response.hovered() && self.hovered_object.is_some())
@@ -1205,27 +1231,52 @@ impl Layer for AreaLayer {
             let show_nodes = self.mode == AreaMode::Modify
                 || (self.mode == AreaMode::ModifySelected && self.selected_area == Some(area_idx));
             if show_nodes {
+                let drag_fill = Color32::from_rgb(255, 140, 0); // High-contrast orange for active dragging
                 match &area.shape {
                     AreaShape::Polygon(_) => {
                         for (node_idx, point) in screen_points.iter().enumerate() {
-                            painter.circle_filled(
-                                *point,
-                                self.node_radius,
-                                self.node_fill.gamma_multiply(self.opacity),
-                            );
-
-                            if let Some(DraggedObject::PolygonNode {
+                            let is_dragged = if let Some(DraggedObject::PolygonNode {
                                 area_index,
                                 node_index,
-                            }) = self.hovered_object
-                                && area_index == area_idx
-                                && node_index == node_idx
-                            {
+                            }) = &self.dragged_object {
+                                *area_index == area_idx && *node_index == node_idx
+                            } else {
+                                false
+                            };
+
+                            let is_hovered = if let Some(DraggedObject::PolygonNode {
+                                area_index,
+                                node_index,
+                            }) = &self.hovered_object {
+                                *area_index == area_idx && *node_index == node_idx
+                            } else {
+                                false
+                            };
+
+                            if is_dragged {
+                                painter.circle_filled(
+                                    *point,
+                                    self.node_radius * 1.2,
+                                    drag_fill.gamma_multiply(self.opacity),
+                                );
                                 painter.circle_stroke(
                                     *point,
                                     self.node_radius * 3.0,
-                                    Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                    Stroke::new(2.0, drag_fill.gamma_multiply(self.opacity)),
                                 );
+                            } else {
+                                painter.circle_filled(
+                                    *point,
+                                    self.node_radius,
+                                    self.node_fill.gamma_multiply(self.opacity),
+                                );
+                                if is_hovered {
+                                    painter.circle_stroke(
+                                        *point,
+                                        self.node_radius * 3.0,
+                                        Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                    );
+                                }
                             }
                         }
                     }
@@ -1245,39 +1296,81 @@ impl Layer for AreaLayer {
                         let point_on_circle_screen = projection.project(point_on_circle_geo);
                         let radius_pixels = center_screen.distance(point_on_circle_screen);
 
-                        painter.circle_filled(
-                            center_screen,
-                            self.node_radius,
-                            self.node_fill.gamma_multiply(self.opacity),
-                        );
+                        // Center Handle
+                        let center_dragged = if let Some(DraggedObject::CircleCenter { area_index }) = &self.dragged_object {
+                            *area_index == area_idx
+                        } else {
+                            false
+                        };
+                        let center_hovered = if let Some(DraggedObject::CircleCenter { area_index }) = &self.hovered_object {
+                            *area_index == area_idx
+                        } else {
+                            false
+                        };
 
-                        if let Some(DraggedObject::CircleCenter { area_index }) =
-                            self.hovered_object
-                            && area_index == area_idx
-                        {
+                        if center_dragged {
+                            painter.circle_filled(
+                                center_screen,
+                                self.node_radius * 1.2,
+                                drag_fill.gamma_multiply(self.opacity),
+                            );
                             painter.circle_stroke(
                                 center_screen,
                                 self.node_radius * 3.0,
-                                Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                Stroke::new(2.0, drag_fill.gamma_multiply(self.opacity)),
                             );
+                        } else {
+                            painter.circle_filled(
+                                center_screen,
+                                self.node_radius,
+                                self.node_fill.gamma_multiply(self.opacity),
+                            );
+                            if center_hovered {
+                                painter.circle_stroke(
+                                    center_screen,
+                                    self.node_radius * 3.0,
+                                    Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                );
+                            }
                         }
 
+                        // Radius Handle
                         let radius_handle_pos = center_screen + egui::vec2(radius_pixels, 0.0);
-                        painter.circle_filled(
-                            radius_handle_pos,
-                            self.node_radius,
-                            self.node_fill.gamma_multiply(self.opacity),
-                        );
+                        let radius_dragged = if let Some(DraggedObject::CircleRadius { area_index }) = &self.dragged_object {
+                            *area_index == area_idx
+                        } else {
+                            false
+                        };
+                        let radius_hovered = if let Some(DraggedObject::CircleRadius { area_index }) = &self.hovered_object {
+                            *area_index == area_idx
+                        } else {
+                            false
+                        };
 
-                        if let Some(DraggedObject::CircleRadius { area_index }) =
-                            self.hovered_object
-                            && area_index == area_idx
-                        {
+                        if radius_dragged {
+                            painter.circle_filled(
+                                radius_handle_pos,
+                                self.node_radius * 1.2,
+                                drag_fill.gamma_multiply(self.opacity),
+                            );
                             painter.circle_stroke(
                                 radius_handle_pos,
                                 self.node_radius * 2.0,
-                                Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                Stroke::new(2.0, drag_fill.gamma_multiply(self.opacity)),
                             );
+                        } else {
+                            painter.circle_filled(
+                                radius_handle_pos,
+                                self.node_radius,
+                                self.node_fill.gamma_multiply(self.opacity),
+                            );
+                            if radius_hovered {
+                                painter.circle_stroke(
+                                    radius_handle_pos,
+                                    self.node_radius * 2.0,
+                                    Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                );
+                            }
                         }
                     }
                     AreaShape::Ellipse {
@@ -1323,78 +1416,167 @@ impl Layer for AreaLayer {
                                 (radius_major_pixels + 20.0) * sin_rot,
                             );
 
+                        let center_dragged = if let Some(DraggedObject::EllipseCenter { area_index }) = &self.dragged_object {
+                            *area_index == area_idx
+                        } else {
+                            false
+                        };
+                        let center_hovered = if let Some(DraggedObject::EllipseCenter { area_index }) = &self.hovered_object {
+                            *area_index == area_idx
+                        } else {
+                            false
+                        };
+
+                        let major_dragged = if let Some(DraggedObject::EllipseMajorRadius { area_index }) = &self.dragged_object {
+                            *area_index == area_idx
+                        } else {
+                            false
+                        };
+                        let major_hovered = if let Some(DraggedObject::EllipseMajorRadius { area_index }) = &self.hovered_object {
+                            *area_index == area_idx
+                        } else {
+                            false
+                        };
+
+                        let minor_dragged = if let Some(DraggedObject::EllipseMinorRadius { area_index }) = &self.dragged_object {
+                            *area_index == area_idx
+                        } else {
+                            false
+                        };
+                        let minor_hovered = if let Some(DraggedObject::EllipseMinorRadius { area_index }) = &self.hovered_object {
+                            *area_index == area_idx
+                        } else {
+                            false
+                        };
+
+                        let rotation_dragged = if let Some(DraggedObject::EllipseRotation { area_index }) = &self.dragged_object {
+                            *area_index == area_idx
+                        } else {
+                            false
+                        };
+                        let rotation_hovered = if let Some(DraggedObject::EllipseRotation { area_index }) = &self.hovered_object {
+                            *area_index == area_idx
+                        } else {
+                            false
+                        };
+
                         // Draw connection line between major handle and rotation handle.
+                        let conn_line_stroke = if rotation_dragged {
+                            Stroke::new(1.5, drag_fill.gamma_multiply(self.opacity))
+                        } else {
+                            Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity))
+                        };
                         painter.line_segment(
                             [major_handle_pos, rotation_handle_pos],
-                            Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                            conn_line_stroke,
                         );
 
                         // 1. Center
-                        painter.circle_filled(
-                            center_screen,
-                            self.node_radius,
-                            self.node_fill.gamma_multiply(self.opacity),
-                        );
-                        if let Some(DraggedObject::EllipseCenter { area_index }) =
-                            self.hovered_object
-                            && area_index == area_idx
-                        {
+                        if center_dragged {
+                            painter.circle_filled(
+                                center_screen,
+                                self.node_radius * 1.2,
+                                drag_fill.gamma_multiply(self.opacity),
+                            );
                             painter.circle_stroke(
                                 center_screen,
                                 self.node_radius * 3.0,
-                                Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                Stroke::new(2.0, drag_fill.gamma_multiply(self.opacity)),
                             );
+                        } else {
+                            painter.circle_filled(
+                                center_screen,
+                                self.node_radius,
+                                self.node_fill.gamma_multiply(self.opacity),
+                            );
+                            if center_hovered {
+                                painter.circle_stroke(
+                                    center_screen,
+                                    self.node_radius * 3.0,
+                                    Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                );
+                            }
                         }
 
                         // 2. Major radius
-                        painter.circle_filled(
-                            major_handle_pos,
-                            self.node_radius,
-                            self.node_fill.gamma_multiply(self.opacity),
-                        );
-                        if let Some(DraggedObject::EllipseMajorRadius { area_index }) =
-                            self.hovered_object
-                            && area_index == area_idx
-                        {
+                        if major_dragged {
+                            painter.circle_filled(
+                                major_handle_pos,
+                                self.node_radius * 1.2,
+                                drag_fill.gamma_multiply(self.opacity),
+                            );
                             painter.circle_stroke(
                                 major_handle_pos,
                                 self.node_radius * 2.0,
-                                Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                Stroke::new(2.0, drag_fill.gamma_multiply(self.opacity)),
                             );
+                        } else {
+                            painter.circle_filled(
+                                major_handle_pos,
+                                self.node_radius,
+                                self.node_fill.gamma_multiply(self.opacity),
+                            );
+                            if major_hovered {
+                                painter.circle_stroke(
+                                    major_handle_pos,
+                                    self.node_radius * 2.0,
+                                    Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                );
+                            }
                         }
 
                         // 3. Minor radius
-                        painter.circle_filled(
-                            minor_handle_pos,
-                            self.node_radius,
-                            self.node_fill.gamma_multiply(self.opacity),
-                        );
-                        if let Some(DraggedObject::EllipseMinorRadius { area_index }) =
-                            self.hovered_object
-                            && area_index == area_idx
-                        {
+                        if minor_dragged {
+                            painter.circle_filled(
+                                minor_handle_pos,
+                                self.node_radius * 1.2,
+                                drag_fill.gamma_multiply(self.opacity),
+                            );
                             painter.circle_stroke(
                                 minor_handle_pos,
                                 self.node_radius * 2.0,
-                                Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                Stroke::new(2.0, drag_fill.gamma_multiply(self.opacity)),
                             );
+                        } else {
+                            painter.circle_filled(
+                                minor_handle_pos,
+                                self.node_radius,
+                                self.node_fill.gamma_multiply(self.opacity),
+                            );
+                            if minor_hovered {
+                                painter.circle_stroke(
+                                    minor_handle_pos,
+                                    self.node_radius * 2.0,
+                                    Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                );
+                            }
                         }
 
                         // 4. Rotation
-                        painter.circle_filled(
-                            rotation_handle_pos,
-                            self.node_radius,
-                            self.node_fill.gamma_multiply(self.opacity),
-                        );
-                        if let Some(DraggedObject::EllipseRotation { area_index }) =
-                            self.hovered_object
-                            && area_index == area_idx
-                        {
+                        if rotation_dragged {
+                            painter.circle_filled(
+                                rotation_handle_pos,
+                                self.node_radius * 1.2,
+                                drag_fill.gamma_multiply(self.opacity),
+                            );
                             painter.circle_stroke(
                                 rotation_handle_pos,
                                 self.node_radius * 2.0,
-                                Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                Stroke::new(2.0, drag_fill.gamma_multiply(self.opacity)),
                             );
+                        } else {
+                            painter.circle_filled(
+                                rotation_handle_pos,
+                                self.node_radius,
+                                self.node_fill.gamma_multiply(self.opacity),
+                            );
+                            if rotation_hovered {
+                                painter.circle_stroke(
+                                    rotation_handle_pos,
+                                    self.node_radius * 2.0,
+                                    Stroke::new(1.0, self.node_fill.gamma_multiply(self.opacity)),
+                                );
+                            }
                         }
                     }
                 }
