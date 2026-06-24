@@ -50,6 +50,10 @@ pub mod layer;
 /// Types and definitions for the area layer.
 pub mod types;
 
+pub(crate) mod geojson;
+pub(crate) mod input;
+pub(crate) mod render;
+
 #[cfg(test)]
 mod tests;
 
