@@ -140,8 +140,8 @@ impl Default for KarttapaikkaMapConfig {
             default_center: (24.93545, 60.16952), // Helsinki, Finland
             default_zoom: 7,
             api_key: "your-key-here".to_string(),
-            min_zoom: 1,
-            max_zoom: 15,
+            min_zoom: 0,
+            max_zoom: 18,
         }
     }
 }
