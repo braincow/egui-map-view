@@ -11,6 +11,10 @@ use std::hash::{Hash, Hasher};
 /// An SVG element on the map.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SvgElement {
+    /// The unique identifier of the SVG element.
+    #[serde(default = "uuid::Uuid::new_v4")]
+    pub id: uuid::Uuid,
+
     /// The geographical position (longitude, latitude) of the SVG element.
     pub pos: GeoPos,
 
@@ -56,6 +60,7 @@ impl SvgElement {
     /// Creates a new SVG element.
     pub fn new(pos: GeoPos, text: impl Into<String>, metadata: impl Into<String>) -> Self {
         Self {
+            id: uuid::Uuid::new_v4(),
             pos,
             text: text.into(),
             metadata: metadata.into(),
@@ -74,6 +79,7 @@ impl SvgElement {
         metadata: impl Into<String>,
     ) -> Self {
         Self {
+            id: uuid::Uuid::new_v4(),
             pos: GeoPos { lon, lat },
             text: text.into(),
             metadata: metadata.into(),
@@ -82,6 +88,13 @@ impl SvgElement {
             draggable: false,
             anchor: default_anchor(),
         }
+    }
+
+    /// Sets the unique identifier of the SVG element.
+    #[must_use]
+    pub fn with_id(mut self, id: uuid::Uuid) -> Self {
+        self.id = id;
+        self
     }
 
     /// Sets whether the SVG element is scalable.
@@ -116,6 +129,8 @@ impl SvgElement {
 /// Information about a click on an SVG element.
 #[derive(Clone, Debug)]
 pub struct SvgClickEvent {
+    /// The ID of the clicked SVG element.
+    pub id: uuid::Uuid,
     /// The button that was clicked.
     pub button: PointerButton,
     /// The metadata of the clicked SVG element.
@@ -170,6 +185,25 @@ impl SvgLayer {
     /// Takes all click events from the layer, leaving it empty.
     pub fn take_events(&mut self) -> Vec<SvgClickEvent> {
         std::mem::take(&mut self.events)
+    }
+
+    /// Finds an SVG element by its ID.
+    pub fn find_element(&self, id: uuid::Uuid) -> Option<&SvgElement> {
+        self.elements.iter().find(|e| e.id == id)
+    }
+
+    /// Finds an SVG element by its ID and returns a mutable reference.
+    pub fn find_element_mut(&mut self, id: uuid::Uuid) -> Option<&mut SvgElement> {
+        self.elements.iter_mut().find(|e| e.id == id)
+    }
+
+    /// Removes an SVG element from the layer by its ID and returns it.
+    pub fn remove_element(&mut self, id: uuid::Uuid) -> Option<SvgElement> {
+        if let Some(pos) = self.elements.iter().position(|e| e.id == id) {
+            Some(self.elements.remove(pos))
+        } else {
+            None
+        }
     }
 }
 
@@ -262,6 +296,7 @@ impl Layer for SvgLayer {
                             };
 
                             self.events.push(SvgClickEvent {
+                                id: element.id,
                                 button,
                                 metadata: element.metadata.clone(),
                                 world_pos: projection.unproject(pointer_pos),
@@ -331,15 +366,13 @@ mod tests {
     #[test]
     fn svg_layer_serde() {
         let mut layer = SvgLayer::default();
-        layer.add_element(SvgElement {
-            pos: GeoPos { lon: 1.0, lat: 2.0 },
-            text: "<svg></svg>".to_string(),
-            metadata: "test metadata".to_string(),
-            scalable: false,
-            clickable: true,
-            draggable: false,
-            anchor: Pos2::new(0.5, 0.5),
-        });
+        layer.add_element(
+            SvgElement::new(GeoPos { lon: 1.0, lat: 2.0 }, "<svg></svg>", "test metadata")
+                .with_scalable(false)
+                .with_clickable(true)
+                .with_draggable(false)
+                .with_anchor(Pos2::new(0.5, 0.5)),
+        );
 
         let json = serde_json::to_string(&layer).unwrap();
         let deserialized: SvgLayer = serde_json::from_str(&json).unwrap();
@@ -367,20 +400,19 @@ mod tests {
         let deserialized: SvgLayer = serde_json::from_str(json).unwrap();
         assert!(deserialized.elements[0].clickable);
         assert!(!deserialized.elements[0].draggable);
+        assert_ne!(deserialized.elements[0].id, uuid::Uuid::nil());
     }
 
     #[test]
     fn svg_layer_clickable_false() {
         let mut layer = SvgLayer::default();
-        layer.add_element(SvgElement {
-            pos: GeoPos { lon: 1.0, lat: 2.0 },
-            text: "<svg></svg>".to_string(),
-            metadata: "test metadata".to_string(),
-            scalable: false,
-            clickable: false,
-            draggable: false,
-            anchor: default_anchor(),
-        });
+        layer.add_element(
+            SvgElement::new(GeoPos { lon: 1.0, lat: 2.0 }, "<svg></svg>", "test metadata")
+                .with_scalable(false)
+                .with_clickable(false)
+                .with_draggable(false)
+                .with_anchor(default_anchor()),
+        );
 
         let json = serde_json::to_string(&layer).unwrap();
         let deserialized: SvgLayer = serde_json::from_str(&json).unwrap();
@@ -390,15 +422,13 @@ mod tests {
     #[test]
     fn svg_layer_draggable_true() {
         let mut layer = SvgLayer::default();
-        layer.add_element(SvgElement {
-            pos: GeoPos { lon: 1.0, lat: 2.0 },
-            text: "<svg></svg>".to_string(),
-            metadata: "test metadata".to_string(),
-            scalable: false,
-            clickable: false,
-            draggable: true,
-            anchor: default_anchor(),
-        });
+        layer.add_element(
+            SvgElement::new(GeoPos { lon: 1.0, lat: 2.0 }, "<svg></svg>", "test metadata")
+                .with_scalable(false)
+                .with_clickable(false)
+                .with_draggable(true)
+                .with_anchor(default_anchor()),
+        );
 
         let json = serde_json::to_string(&layer).unwrap();
         let deserialized: SvgLayer = serde_json::from_str(&json).unwrap();

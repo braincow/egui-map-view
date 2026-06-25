@@ -48,6 +48,7 @@ impl From<Area> for Feature {
         let mut feature = Feature::default();
         let mut properties = Map::new();
         add_version_to_properties(&mut properties);
+        properties.insert("id".to_string(), JsonValue::String(area.id.to_string()));
 
         properties.insert(
             "stroke_color".to_string(),
@@ -250,7 +251,16 @@ impl TryFrom<Feature> for Area {
             FillType::Solid
         };
 
+        let id = feature
+            .properties
+            .as_ref()
+            .and_then(|props| props.get("id"))
+            .and_then(|val| val.as_str())
+            .and_then(|s| s.parse::<uuid::Uuid>().ok())
+            .unwrap_or_else(uuid::Uuid::new_v4);
+
         Ok(Area {
+            id,
             shape,
             stroke,
             fill,
@@ -312,6 +322,7 @@ impl From<Text> for Feature {
             coordinates: geojson::Position::from(vec![text.pos.lon, text.pos.lat]),
         });
         feature.geometry = Some(point);
+        properties.insert("id".to_string(), JsonValue::String(text.id.to_string()));
         properties.insert("text".to_string(), JsonValue::String(text.text));
         properties.insert("color".to_string(), JsonValue::String(text.color.to_hex()));
         properties.insert(
@@ -361,6 +372,12 @@ impl TryFrom<Feature> for Text {
 
         if let Some(properties) = feature.properties {
             check_version_from_properties(&properties);
+            if let Some(value) = properties.get("id")
+                && let Some(s) = value.as_str()
+                && let Ok(id) = s.parse::<uuid::Uuid>()
+            {
+                text.id = id;
+            }
             if let Some(value) = properties.get("text") {
                 if let Some(s) = value.as_str() {
                     text.text = s.to_string();

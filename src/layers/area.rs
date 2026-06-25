@@ -25,6 +25,7 @@
 //!         stroke: Stroke::new(2.0, Color32::from_rgb(255, 0, 0)),
 //!         fill: Color32::from_rgba_unmultiplied(255, 0, 0, 50),
 //!         fill_type: FillType::Solid,
+//!         ..Default::default()
 //!     });
 //!     area_layer.mode = AreaMode::Modify;
 //!

@@ -15,7 +15,7 @@ impl AreaLayer {
             // Draw polygon outline
             if screen_points.len() >= 3 {
                 let is_selected =
-                    self.mode == AreaMode::ModifySelected && self.selected_area == Some(area_idx);
+                    self.mode == AreaMode::ModifySelected && self.selected_area == Some(area.id);
                 let stroke = if is_selected {
                     Stroke {
                         width: area.stroke.width * 2.0,
@@ -90,7 +90,7 @@ impl AreaLayer {
 
             // Draw nodes only when in modify mode or if specifically selected
             let show_nodes = self.mode == AreaMode::Modify
-                || (self.mode == AreaMode::ModifySelected && self.selected_area == Some(area_idx));
+                || (self.mode == AreaMode::ModifySelected && self.selected_area == Some(area.id));
             if show_nodes {
                 let drag_fill = Color32::from_rgb(255, 140, 0); // High-contrast orange for active dragging
                 match &area.shape {

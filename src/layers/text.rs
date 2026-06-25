@@ -26,6 +26,10 @@ impl Default for TextSize {
 /// A piece of text on the map.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Text {
+    /// The unique identifier of the text.
+    #[serde(default = "uuid::Uuid::new_v4")]
+    pub id: uuid::Uuid,
+
     /// The text to display.
     pub text: String,
 
@@ -47,6 +51,7 @@ pub struct Text {
 impl Default for Text {
     fn default() -> Self {
         Self {
+            id: uuid::Uuid::new_v4(),
             text: "New Text".to_string(),
             pos: GeoPos { lon: 0.0, lat: 0.0 }, // This will be updated on click.
             size: TextSize::default(),
@@ -59,8 +64,8 @@ impl Default for Text {
 /// The state of the text currently being edited or added.
 #[derive(Clone, Debug)]
 pub struct EditingText {
-    /// The index of the text being edited, if it's an existing one.
-    pub index: Option<usize>,
+    /// The unique identifier of the text being edited, if it's an existing one.
+    pub id: Option<uuid::Uuid>,
     /// The properties of the text being edited.
     pub properties: Text,
 }
@@ -116,28 +121,28 @@ impl Default for TextLayer {
 
 impl TextLayer {
     /// Starts editing an existing text element.
-    pub fn start_editing(&mut self, index: usize) {
-        if let Some(text) = self.texts.get(index) {
+    pub fn start_editing(&mut self, id: uuid::Uuid) {
+        if let Some(text) = self.texts.iter().find(|t| t.id == id) {
             self.editing = Some(EditingText {
-                index: Some(index),
+                id: Some(id),
                 properties: text.clone(),
             });
         }
     }
 
     /// Deletes a text element.
-    pub fn delete(&mut self, index: usize) {
-        if index < self.texts.len() {
-            self.texts.remove(index);
+    pub fn delete(&mut self, id: uuid::Uuid) {
+        if let Some(pos) = self.texts.iter().position(|t| t.id == id) {
+            self.texts.remove(pos);
         }
     }
 
     /// Saves the changes made in the editing dialog.
     pub fn commit_edit(&mut self) {
         if let Some(editing) = self.editing.take() {
-            if let Some(index) = editing.index {
+            if let Some(id) = editing.id {
                 // It's an existing text.
-                if let Some(text) = self.texts.get_mut(index) {
+                if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
                     *text = editing.properties;
                 }
             } else {
@@ -150,6 +155,25 @@ impl TextLayer {
     /// Discards the changes made in the editing dialog.
     pub fn cancel_edit(&mut self) {
         self.editing = None;
+    }
+
+    /// Finds a text element by its ID.
+    pub fn find_text(&self, id: uuid::Uuid) -> Option<&Text> {
+        self.texts.iter().find(|t| t.id == id)
+    }
+
+    /// Finds a text element by its ID and returns a mutable reference.
+    pub fn find_text_mut(&mut self, id: uuid::Uuid) -> Option<&mut Text> {
+        self.texts.iter_mut().find(|t| t.id == id)
+    }
+
+    /// Removes a text element from the layer by its ID and returns it.
+    pub fn remove_text(&mut self, id: uuid::Uuid) -> Option<Text> {
+        if let Some(pos) = self.texts.iter().position(|t| t.id == id) {
+            Some(self.texts.remove(pos))
+        } else {
+            None
+        }
     }
 
     /// Serializes the layer to a `GeoJSON` `FeatureCollection`.
@@ -239,14 +263,17 @@ impl TextLayer {
             if let Some(pointer_pos) = response.interact_pointer_pos() {
                 if let Some(index) = self.find_text_at(pointer_pos, projection, &response.ctx) {
                     // Clicked on an existing text, start editing it.
-                    self.start_editing(index);
+                    if let Some(text) = self.texts.get(index) {
+                        self.start_editing(text.id);
+                    }
                 } else {
                     // Clicked on an empty spot, start adding a new text.
                     let geo_pos = projection.unproject(pointer_pos);
                     let mut properties = self.new_text_properties.clone();
+                    properties.id = uuid::Uuid::new_v4();
                     properties.pos = geo_pos;
                     self.editing = Some(EditingText {
-                        index: None,
+                        id: None,
                         properties,
                     });
                 }
@@ -370,12 +397,13 @@ mod tests {
             size: TextSize::Static(14.0),
             color: Color32::from_rgb(0, 0, 255),
             background: Color32::from_rgba_unmultiplied(255, 0, 0, 128),
+            ..Default::default()
         });
 
         let json = serde_json::to_string(&layer).unwrap();
 
-        // The serialized string should only contain texts.
-        assert!(json.contains(r##""texts":[{"text":"Hello","pos":{"lon":1.0,"lat":2.0},"size":{"Static":14.0},"color":"#0000ffff","background":"#ff000080""##));
+        // The serialized string should contain the text properties.
+        assert!(json.contains(r##""text":"Hello","pos":{"lon":1.0,"lat":2.0},"size":{"Static":14.0},"color":"#0000ffff","background":"#ff000080""##));
 
         // it should not contain skipped fields
         assert!(!json.contains("mode"));
@@ -399,10 +427,9 @@ mod tests {
         // Check that skipped fields have their values from the `default()` implementation.
         let default_layer = TextLayer::default();
         assert_eq!(deserialized.mode, default_layer.mode);
-        assert_eq!(
-            deserialized.new_text_properties,
-            default_layer.new_text_properties
-        );
+        let mut expected_properties = default_layer.new_text_properties.clone();
+        expected_properties.id = deserialized.new_text_properties.id;
+        assert_eq!(deserialized.new_text_properties, expected_properties);
         assert!(deserialized.editing.is_none());
         assert!(deserialized.dragged_text_index.is_none());
     }
@@ -420,6 +447,7 @@ mod tests {
                 size: TextSize::Static(14.0),
                 color: Color32::from_rgb(0, 0, 255),
                 background: Color32::from_rgba_unmultiplied(255, 0, 0, 128),
+                ..Default::default()
             });
 
             let geojson_str = layer.to_geojson_str().unwrap();

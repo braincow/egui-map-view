@@ -59,6 +59,10 @@ pub enum FillType {
 /// A polygon area on the map.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Area {
+    /// The unique identifier of the area.
+    #[serde(default = "uuid::Uuid::new_v4")]
+    pub id: uuid::Uuid,
+
     /// The shape of the area.
     pub shape: AreaShape,
 
@@ -102,7 +106,30 @@ pub(crate) enum DraggedObject {
     },
 }
 
+impl Default for Area {
+    fn default() -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            shape: AreaShape::Polygon(Vec::new()),
+            stroke: Stroke::default(),
+            fill: Color32::TRANSPARENT,
+            fill_type: FillType::Solid,
+        }
+    }
+}
+
 impl Area {
+    /// Creates a new area with the given shape, stroke, fill, and a newly generated ID.
+    pub fn new(shape: AreaShape, stroke: Stroke, fill: Color32) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            shape,
+            stroke,
+            fill,
+            fill_type: FillType::Solid,
+        }
+    }
+
     /// Checks if the area can be successfully triangulated.
     pub(crate) fn can_triangulate(&self, projection: &MapProjection) -> bool {
         let points = self.get_points(projection);
