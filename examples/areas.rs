@@ -42,6 +42,7 @@ impl Default for MyApp {
             stroke: Stroke::new(2.0, Color32::from_rgb(255, 0, 0)),
             fill: Color32::from_rgba_unmultiplied(255, 0, 0, 50),
             fill_type: FillType::Hatching,
+            ..Default::default()
         });
 
         // Circle with solid fill
@@ -54,6 +55,7 @@ impl Default for MyApp {
             stroke: Stroke::new(2.0, Color32::from_rgb(0, 102, 255)),
             fill: Color32::from_rgba_unmultiplied(0, 102, 255, 50),
             fill_type: FillType::Solid,
+            ..Default::default()
         });
 
         // Rectangle with no fill (outline only)
@@ -67,6 +69,7 @@ impl Default for MyApp {
             stroke: Stroke::new(2.0, Color32::from_rgb(0, 180, 0)),
             fill: Color32::TRANSPARENT,
             fill_type: FillType::None,
+            ..Default::default()
         });
 
         // Rotated Ellipse with solid fill
@@ -81,6 +84,7 @@ impl Default for MyApp {
             stroke: Stroke::new(2.0, Color32::from_rgb(255, 165, 0)),
             fill: Color32::from_rgba_unmultiplied(255, 165, 0, 50),
             fill_type: FillType::Solid,
+            ..Default::default()
         });
 
         map.add_layer("areas", area_layer);
@@ -115,8 +119,8 @@ impl eframe::App for MyApp {
 
                     if area_layer.mode == AreaMode::ModifySelected {
                         ui.separator();
-                        if let Some(idx) = area_layer.selected_area {
-                            ui.label(format!("Selected Area Index: {idx}"));
+                        if let Some(id) = area_layer.selected_area {
+                            ui.label(format!("Selected Area ID: {id}"));
                             if ui.button("Clear Selection").clicked() {
                                 area_layer.selected_area = None;
                             }

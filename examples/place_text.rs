@@ -63,7 +63,7 @@ impl eframe::App for MyApp {
             if let Some(mut editing) = layer.editing.take() {
                 let mut open = true;
                 let mut should_commit = false;
-                let title = if editing.index.is_some() {
+                let title = if editing.id.is_some() {
                     "Edit Text"
                 } else {
                     "Add Text"

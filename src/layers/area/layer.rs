@@ -35,8 +35,8 @@ pub struct AreaLayer {
     pub opacity: f32,
 
     #[serde(skip)]
-    /// The index of the currently selected area. Only used when in `AreaMode::Selected`.
-    pub selected_area: Option<usize>,
+    /// The unique identifier of the currently selected area. Only used when in `AreaMode::ModifySelected`.
+    pub selected_area: Option<uuid::Uuid>,
 }
 
 impl Default for AreaLayer {
@@ -76,6 +76,25 @@ impl AreaLayer {
     pub fn areas_mut(&mut self) -> &mut Vec<Area> {
         &mut self.areas
     }
+
+    /// Finds an area in the layer by its ID.
+    pub fn find_area(&self, id: uuid::Uuid) -> Option<&Area> {
+        self.areas.iter().find(|a| a.id == id)
+    }
+
+    /// Finds an area in the layer by its ID and returns a mutable reference.
+    pub fn find_area_mut(&mut self, id: uuid::Uuid) -> Option<&mut Area> {
+        self.areas.iter_mut().find(|a| a.id == id)
+    }
+
+    /// Removes an area from the layer by its ID and returns it.
+    pub fn remove_area(&mut self, id: uuid::Uuid) -> Option<Area> {
+        if let Some(pos) = self.areas.iter().position(|a| a.id == id) {
+            Some(self.areas.remove(pos))
+        } else {
+            None
+        }
+    }
 }
 
 impl Layer for AreaLayer {
@@ -107,27 +126,31 @@ impl Layer for AreaLayer {
                     && let Some(pointer_pos) = response.interact_pointer_pos()
                 {
                     // Find if any area was clicked to select it.
-                    let clicked_area_idx =
+                    let clicked_area_id =
                         self.areas.iter().enumerate().rev().find_map(|(idx, area)| {
                             let contains_fill = area.contains(pointer_pos, projection);
                             let over_handle = self.find_object_at(pointer_pos, projection, Some(idx)).is_some();
                             let over_segment = self.find_line_segment_at(pointer_pos, projection, Some(idx)).is_some();
 
                             if contains_fill || over_handle || over_segment {
-                                Some(idx)
+                                Some(area.id)
                             } else {
                                 None
                             }
                         });
 
-                    if clicked_area_idx != self.selected_area {
-                        self.selected_area = clicked_area_idx;
+                    if clicked_area_id != self.selected_area {
+                        self.selected_area = clicked_area_id;
                         return true;
                     }
                 }
 
-                if let Some(selected_idx) = self.selected_area {
-                    self.handle_modify_input(response, projection, Some(selected_idx))
+                if let Some(selected_id) = self.selected_area {
+                    if let Some(selected_idx) = self.areas.iter().position(|a| a.id == selected_id) {
+                        self.handle_modify_input(response, projection, Some(selected_idx))
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }

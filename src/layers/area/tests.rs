@@ -35,6 +35,7 @@ fn area_layer_add_area() {
         stroke: Default::default(),
         fill: Default::default(),
         fill_type: Default::default(),
+        ..Default::default()
     });
 
     assert_eq!(layer.areas.len(), 1);
@@ -52,6 +53,7 @@ fn circle_get_points_with_fixed_number() {
         stroke: Default::default(),
         fill: Default::default(),
         fill_type: Default::default(),
+        ..Default::default()
     };
 
     let points = area.get_points(&projection);
@@ -78,6 +80,7 @@ fn find_object_at_polygon_node() {
         stroke: Default::default(),
         fill: Default::default(),
         fill_type: Default::default(),
+        ..Default::default()
     });
 
     // Position is exactly on the node
@@ -113,6 +116,7 @@ fn area_layer_serde() {
         stroke: Stroke::new(1.0, Color32::RED),
         fill: Color32::BLUE,
         fill_type: Default::default(),
+        ..Default::default()
     });
 
     let json = serde_json::to_string(&layer).unwrap();
@@ -134,6 +138,7 @@ fn test_can_triangulate_valid() {
         stroke: Default::default(),
         fill: Default::default(),
         fill_type: Default::default(),
+        ..Default::default()
     };
 
     assert!(area.can_triangulate(&projection));
@@ -147,6 +152,7 @@ fn test_can_triangulate_insufficient_points() {
         stroke: Default::default(),
         fill: Default::default(),
         fill_type: Default::default(),
+        ..Default::default()
     };
 
     // Should return true as we don't consider < 3 points as a triangulation failure
@@ -170,6 +176,7 @@ mod geojson_tests {
             stroke: Stroke::new(2.0, Color32::from_rgb(0, 0, 255)),
             fill: Color32::from_rgba_unmultiplied(255, 0, 0, 128),
             fill_type: Default::default(),
+            ..Default::default()
         });
 
         let geojson_str = layer.to_geojson_str().unwrap();
@@ -193,6 +200,7 @@ mod geojson_tests {
             stroke: Default::default(),
             fill: Default::default(),
             fill_type: Default::default(),
+            ..Default::default()
         });
 
         let geojson_str = layer.to_geojson_str().unwrap();
@@ -217,6 +225,7 @@ mod geojson_tests {
             stroke: Default::default(),
             fill: Default::default(),
             fill_type: Default::default(),
+            ..Default::default()
         });
 
         let geojson_str = layer.to_geojson_str().unwrap();
@@ -242,6 +251,7 @@ fn ellipse_get_points_with_fixed_number() {
         stroke: Default::default(),
         fill: Default::default(),
         fill_type: Default::default(),
+        ..Default::default()
     };
 
     let points = area.get_points(&projection);
@@ -262,6 +272,7 @@ fn ellipse_containment() {
         stroke: Default::default(),
         fill: Default::default(),
         fill_type: Default::default(),
+        ..Default::default()
     };
 
     // Center is inside
@@ -292,6 +303,7 @@ fn find_node_at_on_segment() {
         stroke: Default::default(),
         fill: Default::default(),
         fill_type: Default::default(),
+        ..Default::default()
     });
 
     // Click exactly between p1 and p2
